@@ -10,6 +10,9 @@
 - Space Grotesk + base design tokens (colors, spacing, typography)
 
 **M2 — Projects & Milestones**
+- Apply finalized color tokens across the app (replacing any placeholder colors from M1)
+  - Base: `#141414`, Surface: `#1C1C1C`, Accent: `#7B9AB2`, Text: `#EFEFED`
+  - No teal, no gradients — accent only on interactive/active elements
 - Projects CRUD
 - Milestones CRUD + ordering within projects
 - Project detail page with inline milestone management

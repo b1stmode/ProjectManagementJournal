@@ -104,11 +104,14 @@ Completed tasks auto-update milestone completion percentage.
 - AI startup dashboard — no glassmorphism, gradients, neon, floating cards, KPI blocks
 - Terminal roleplay — no fake console effects, no monospace everywhere
 
-### Colors
-- Background: dark charcoal / dark gray (not pure black)
-- Cards: slightly lighter than background, subtle separation
-- Text: off-white
-- Accent: one color only — muted blue, teal, or amber (TBD)
+### Colors (finalized — 60-30-10 rule)
+- **60% — Base:** near-black with slight warmth — `#0F0F0F` to `#141414`
+- **30% — Surface:** cards, sidebar, panels — `#1C1C1C` to `#202020`
+- **10% — Accent:** muted blue-gray — approx. `#7B9AB2`
+- **Text:** near-white `#E8E6E1` or `#EFEFED` — not part of the ratio, always readable
+
+Accent appears on: active project indicator, progress bars, current milestone highlight, interactive elements (buttons, ticked checkboxes), Finish Session button.
+No teal. No gradients. No neon. Typography and text carry the visual weight.
 
 ### Typography
 - **Primary font: Space Grotesk**
