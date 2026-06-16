@@ -3,13 +3,13 @@
 ## V1 — Core App (IndexedDB, local)
 *Goal: Fully functional app, no backend, works offline*
 
-**M1 — Project Foundation**
+**M1 — Project Foundation** ✓ *(2026-06-16)*
 - Folder structure, PWA manifest, service worker skeleton
 - IndexedDB setup with full schema
 - Routing / navigation shell
 - Space Grotesk + base design tokens (colors, spacing, typography)
 
-**M2 — Projects & Milestones**
+**M2 — Projects & Milestones** ✓ *(2026-06-16)*
 - Apply finalized color tokens across the app (replacing any placeholder colors from M1)
   - Base: `#141414`, Surface: `#1C1C1C`, Accent: `#7B9AB2`, Text: `#EFEFED`
   - No teal, no gradients — accent only on interactive/active elements
