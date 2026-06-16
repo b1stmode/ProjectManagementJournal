@@ -143,6 +143,29 @@ Completed tasks auto-update milestone completion percentage.
 
 ---
 
+## Roadmap
+
+### V1 — Core App (IndexedDB, local)
+- M1: Project foundation — folder structure, PWA manifest, IndexedDB schema, design tokens
+- M2: Projects & milestones — CRUD, ordering, active milestone logic, project detail page
+- M3: Tasks — CRUD, ordering, milestone % auto-update, project completion detection, auto-advance logic
+- M4: Home command center — sidebar, today's 4 tasks, deadline alerts, Finish Session button
+- M5: Session log — modal, auto-filled completed tasks, notes, next session plan, session history
+- M6: Polish & PWA — full design pass, mobile layout, installable PWA, edge cases
+
+### V2 — Auth & Sync
+- M7: Supabase integration — user auth, cloud schema, data sync
+- M8: Migration & stability — local → cloud migration, offline-first conflict handling
+
+### V3 — Enhanced Features
+- M9: Calendar & dates — read-only calendar on home, important dates object, deadline visibility
+- M10: Session intelligence — session types (short/medium/long), mid-session milestone advance, backlog
+
+### V4 — Integrations
+- M11: Google Calendar sync — connect in-app calendar to Google Calendar so tasks with due dates appear on phone natively
+
+---
+
 ## Status
 
 Planning complete. Data model detail and component breakdown to be done at start of dev session.
