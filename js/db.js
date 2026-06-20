@@ -132,6 +132,15 @@ export function deleteProject(id) {
   });
 }
 
+export function getMilestone(id) {
+  return new Promise((resolve, reject) => {
+    const tx = getDB().transaction('milestones', 'readonly');
+    const req = tx.objectStore('milestones').get(id);
+    req.onsuccess = () => resolve(req.result ?? null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
 // --- Milestones ---
 
 export function createMilestone(data) {
@@ -189,6 +198,15 @@ export function deleteMilestone(id) {
       .getAllKeys(IDBKeyRange.only(id)).onsuccess = (e) => {
         e.target.result.forEach(key => tx.objectStore('tasks').delete(key));
       };
+  });
+}
+
+export function getTask(id) {
+  return new Promise((resolve, reject) => {
+    const tx = getDB().transaction('tasks', 'readonly');
+    const req = tx.objectStore('tasks').get(id);
+    req.onsuccess = () => resolve(req.result ?? null);
+    req.onerror = () => reject(req.error);
   });
 }
 

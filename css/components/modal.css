@@ -79,3 +79,27 @@
   justify-content: flex-end;
   gap: var(--space-3);
 }
+
+/* ─── Responsive ──────────────────────── */
+
+@media (max-width: 480px) {
+  .modal {
+    padding: var(--space-4);
+  }
+
+  .modal-actions {
+    flex-direction: column-reverse;
+    gap: var(--space-2);
+  }
+
+  .modal-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .modal-overlay {
+    padding-bottom: max(var(--space-4), env(safe-area-inset-bottom));
+  }
+}

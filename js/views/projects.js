@@ -1,6 +1,6 @@
 import { getAllProjects, createProject, updateProject, deleteProject } from '../db.js';
 import { navigate } from '../router.js';
-import { openModal, closeModal } from '../utils/modal.js';
+import { openModal, closeModal, openConfirmModal } from '../utils/modal.js';
 
 export async function renderProjects(_params) {
   document.getElementById('app').innerHTML = `
@@ -91,9 +91,11 @@ async function handleSetActive(id) {
 }
 
 async function handleDelete(project) {
-  if (!window.confirm(`Delete "${project.name}"?\n\nAll milestones, tasks, and sessions will be removed. This cannot be undone.`)) return;
-  await deleteProject(project.id);
-  await loadAndRender();
+  openConfirmModal(`Delete "${escapeHtml(project.name)}"? All milestones, tasks, and sessions will be lost.`, async () => {
+    closeModal();
+    await deleteProject(project.id);
+    await loadAndRender();
+  });
 }
 
 function escapeHtml(str) {

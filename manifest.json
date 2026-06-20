@@ -1,18 +1,27 @@
 {
+  "id": "/",
   "name": "Project Management Journal",
   "short_name": "PM Journal",
   "description": "Developer-focused project management — know what to work on next.",
+  "lang": "en",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "orientation": "portrait-primary",
-  "theme_color": "#16161a",
-  "background_color": "#16161a",
+  "theme_color": "#141414",
+  "background_color": "#141414",
+  "categories": ["productivity", "utilities"],
   "icons": [
     {
       "src": "/icons/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
     }
   ]
 }

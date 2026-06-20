@@ -18,30 +18,32 @@
 - Project detail page with inline milestone management
 - Active milestone auto-logic
 
-**M3 — Tasks**
+**M3 — Tasks** ✓ *(2026-06-20)*
 - Tasks CRUD + ordering within milestones
 - Task completion → milestone % auto-update
 - Project completion detection
-- Active project set manually
-- Auto-advance: next most-progressed project activates on completion, or nothing (user picks)
+- Milestone auto-complete when all tasks done (and un-complete when a task is unchecked)
 
-**M4 — Home Command Center**
-- Left sidebar: project list, status, progress bar, dropdown actions
-- Main area: today's 4 sequential tasks from active milestone
-- Deadline alerts below session
-- Finish Session button
+**M4 — Home Command Center** ✓ *(2026-06-20)*
+- Left sidebar: project list with status badge + milestone progress bar
+- Main area: all tasks from active milestone (completed tasks stay visible with strikethrough)
+- Deadline alerts section (empty state — wired in M9)
+- Finish Session button (rendered, stubbed — wired in M5)
+- `/` route now renders home; `/projects` kept as fallback
 
-**M5 — Session Log**
+**M5 — Session Log** ✓ *(2026-06-20)*
 - Finish Session modal (triggered regardless of task completion state)
-- Auto-filled completed tasks
-- Not done list, notes field, next session plan field
-- Session history readable within project detail
+- Auto-filled completed tasks (tasks completed since lastSessionAt)
+- Not done list (incomplete tasks from active milestone), notes field, next session plan field
+- Session history readable within project detail (newest-first, read-only)
 
-**M6 — V1 Polish & PWA**
+**M6 — V1 Polish & PWA** ✓ *(2026-06-20)*
 - Full design pass across all screens
-- Mobile layout
-- Installable PWA (manifest + service worker complete)
-- Edge cases, empty states, error handling
+- Mobile layout — responsive breakpoints across all component CSS files
+- Installable PWA — real service worker caching, manifest corrected
+- Confirm dialogs styled (replaces window.confirm)
+- Deadline Alerts stub removed
+- Edge cases and empty states improved
 
 ---
 

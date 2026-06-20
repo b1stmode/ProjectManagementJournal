@@ -173,3 +173,23 @@
   border: 1px dashed var(--border-default);
   border-radius: var(--radius-md);
 }
+
+/* ─── Responsive ──────────────────────── */
+
+@media (max-width: 640px) {
+  .project-detail-view {
+    padding: var(--space-6) var(--space-4);
+  }
+
+  .milestone-item {
+    flex-wrap: wrap;
+  }
+
+  .milestone-actions {
+    width: 100%;
+    border-top: 1px solid var(--border-subtle);
+    padding-top: var(--space-3);
+    margin-top: var(--space-2);
+    justify-content: flex-end;
+  }
+}

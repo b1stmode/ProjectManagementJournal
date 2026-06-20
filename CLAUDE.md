@@ -171,4 +171,6 @@ No teal. No gradients. No neon. Typography and text carry the visual weight.
 
 ## Status
 
-Planning complete. Data model detail and component breakdown to be done at start of dev session.
+**M1–M6 complete** (as of 2026-06-20). V1 is done: projects → milestones → tasks → home command center → session log → polish & PWA.
+
+**Next:** V2 planning — M7 Supabase auth + sync.

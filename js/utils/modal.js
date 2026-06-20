@@ -1,6 +1,6 @@
 let overlay = null;
 
-export function openModal(title, bodyHTML, onConfirm, confirmLabel = 'Confirm') {
+export function openModal(title, bodyHTML, onConfirm, confirmLabel = 'Confirm', confirmClass = 'btn-primary') {
   closeModal();
 
   overlay = document.createElement('div');
@@ -11,7 +11,7 @@ export function openModal(title, bodyHTML, onConfirm, confirmLabel = 'Confirm') 
       <div class="modal-body">${bodyHTML}</div>
       <div class="modal-actions">
         <button class="btn btn-ghost" data-action="cancel">Cancel</button>
-        <button class="btn btn-primary" data-action="confirm">${confirmLabel}</button>
+        <button class="btn ${confirmClass}" data-action="confirm">${confirmLabel}</button>
       </div>
     </div>
   `;
@@ -38,3 +38,13 @@ export function closeModal() {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeModal();
 });
+
+export function openConfirmModal(message, onConfirm) {
+  openModal(
+    'Are you sure?',
+    `<p style="color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.6;">${message}</p>`,
+    onConfirm,
+    'Delete',
+    'btn-danger'
+  );
+}

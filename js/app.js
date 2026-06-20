@@ -1,5 +1,6 @@
 import { initDB } from './db.js';
 import { initRouter, defineRoute, navigate } from './router.js';
+import { renderHome } from './views/home.js';
 import { renderProjects } from './views/projects.js';
 import { renderProject } from './views/project.js';
 
@@ -14,7 +15,7 @@ async function boot() {
     return;
   }
 
-  defineRoute('/', () => navigate('/projects'));
+  defineRoute('/', renderHome);
   defineRoute('/projects', renderProjects);
   defineRoute('/project/:id', renderProject);
 
