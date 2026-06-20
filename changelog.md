@@ -244,3 +244,19 @@
 - `syncDown` uses two-phase approach: readonly IDB transaction to collect local keys, then async Supabase fetch, then readwrite transaction to upsert + delete. This avoids the IDB restriction that transactions auto-close when the call stack goes idle.
 - Failed queue entries are kept and retried next time — no data loss on persistent errors
 - Conflict resolution: last-write-wins at the Supabase level. For a single-user personal tool with sequential device use, this is acceptable. True conflict resolution deferred indefinitely (not planned until V5+).
+
+---
+
+### Post-V2 — Mobile sidebar button + Project edit/delete
+
+**Files modified:**
+- `js/views/home.js` — changed button text to `☰ Projects` in both `renderMainActive` and `renderMainEmpty`
+- `css/components/home.css` — restyled `.mobile-sidebar-btn`: added border, padding, font-weight, hover state (accent border + brighter text). Now looks like a tappable chip instead of a label.
+- `js/views/project.js` — added `deleteProject` import from `db.js`; added `navigate` import from `router.js`; added "Edit" and "Delete" buttons to `.project-header-top`; wired edit modal (pre-filled name/description, saves via `updateProject`); wired delete confirm modal (uses `openConfirmModal`, calls `deleteProject`, navigates to `/` on confirm)
+
+**Features working:**
+- Mobile: `☰ Projects` button is visually distinct and clearly interactive
+- Project detail: "Edit" opens a pre-filled modal; saving updates the project name/description and re-renders the detail page
+- Project detail: "Delete" opens styled confirm dialog with project name; confirming deletes the project and all its data, then returns to home
+
+**V2 complete** — M7 (Supabase + sync) + M8 (offline queue + multi-device) both done and deployed.

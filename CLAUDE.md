@@ -171,6 +171,6 @@ No teal. No gradients. No neon. Typography and text carry the visual weight.
 
 ## Status
 
-**M1–M6 complete** (as of 2026-06-20). V1 is done: projects → milestones → tasks → home command center → session log → polish & PWA.
+**M1–M8 complete** (as of 2026-06-20). V1 and V2 are done. App is live on Cloudflare Pages with Supabase cloud sync, offline queue, and multi-device support.
 
-**Next:** V2 planning — M7 Supabase auth + sync.
+**Next:** V3 — M9 Calendar & Dates or M10 Session Intelligence.
