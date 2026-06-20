@@ -1,5 +1,5 @@
 import { initDB } from './db.js';
-import { firstTimeSync } from './sync.js';
+import { firstTimeSync, flushQueue } from './sync.js';
 import { initRouter, defineRoute, navigate } from './router.js';
 import { renderHome } from './views/home.js';
 import { renderProjects } from './views/projects.js';
@@ -16,6 +16,8 @@ async function boot() {
       `<div class="view-loading">Failed to initialize database. Please refresh.</div>`;
     return;
   }
+
+  window.addEventListener('online', () => flushQueue());
 
   defineRoute('/', renderHome);
   defineRoute('/projects', renderProjects);

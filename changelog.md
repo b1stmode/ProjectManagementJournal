@@ -224,3 +224,23 @@
 - **Circular import avoided:** `sync.js` uses dynamic `await import('./db.js')` inside async functions rather than a static top-level import. `db.js` imports `sync.js` statically. No initialization-order issues.
 - **config.js committed:** No build step means CF Pages can't inject env vars — file must exist in repo. Anon keys are public by Supabase design.
 - **Offline:** `navigator.onLine` guard on all Supabase calls — app continues to work offline, sync simply skipped.
+
+---
+
+### M8 — Migration & Stability ✓
+
+**Files modified:**
+- `js/sync.js` — full rewrite: offline queue added, `syncRecord`/`deleteRecord` now enqueue on failure, new `flushQueue` export, `syncDown` updated to handle cross-device deletions, `firstTimeSync` updated to always flush+pull
+- `js/app.js` — added `flushQueue` import; `window.addEventListener('online', () => flushQueue())` wired after boot
+
+**Features working:**
+- Offline queue: any create/update/delete made while offline is serialized to `localStorage` under `'pm-sync-queue'` and replayed when connectivity returns
+- `flushQueue()` fires automatically on the `online` event (browser restores connection) and on app load (catches queue from previous sessions)
+- `syncDown()` now diffs local IDB keys against Supabase keys and deletes local records that no longer exist in Supabase — handles deletions made on another device
+- `firstTimeSync` always calls `flushQueue()` first, then pulls from Supabase if Supabase has any data (replaces the M7 "trust local" no-op for the "both have data" case)
+
+**Architecture decisions:**
+- Queue stored in `localStorage` as JSON array — simple, survives browser restarts, no extra IDB store needed
+- `syncDown` uses two-phase approach: readonly IDB transaction to collect local keys, then async Supabase fetch, then readwrite transaction to upsert + delete. This avoids the IDB restriction that transactions auto-close when the call stack goes idle.
+- Failed queue entries are kept and retried next time — no data loss on persistent errors
+- Conflict resolution: last-write-wins at the Supabase level. For a single-user personal tool with sequential device use, this is acceptable. True conflict resolution deferred indefinitely (not planned until V5+).
