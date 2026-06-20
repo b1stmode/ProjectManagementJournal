@@ -1,3 +1,5 @@
+import { syncRecord, deleteRecord } from './sync.js';
+
 const DB_NAME = 'pmjournal';
 const DB_VERSION = 1;
 
@@ -69,7 +71,11 @@ export function createProject(data) {
       createdAt: Date.now(),
     };
     const req = store.add(record);
-    req.onsuccess = () => resolve({ ...record, id: req.result });
+    req.onsuccess = () => {
+      const fullRecord = { ...record, id: req.result };
+      syncRecord('projects', fullRecord);
+      resolve(fullRecord);
+    };
     req.onerror = () => reject(req.error);
   });
 }
@@ -100,7 +106,10 @@ export function updateProject(id, changes) {
     getReq.onsuccess = () => {
       const updated = { ...getReq.result, ...changes };
       const putReq = store.put(updated);
-      putReq.onsuccess = () => resolve(updated);
+      putReq.onsuccess = () => {
+        syncRecord('projects', updated);
+        resolve(updated);
+      };
       putReq.onerror = () => reject(putReq.error);
     };
     getReq.onerror = () => reject(getReq.error);
@@ -110,7 +119,10 @@ export function updateProject(id, changes) {
 export function deleteProject(id) {
   return new Promise((resolve, reject) => {
     const tx = getDB().transaction(['projects', 'milestones', 'tasks', 'sessions'], 'readwrite');
-    tx.oncomplete = () => resolve();
+    tx.oncomplete = () => {
+      deleteRecord('projects', id); // Supabase FK cascade handles milestones/tasks/sessions
+      resolve();
+    };
     tx.onerror = () => reject(tx.error);
 
     tx.objectStore('projects').delete(id);
@@ -157,7 +169,11 @@ export function createMilestone(data) {
       createdAt: Date.now(),
     };
     const req = store.add(record);
-    req.onsuccess = () => resolve({ ...record, id: req.result });
+    req.onsuccess = () => {
+      const fullRecord = { ...record, id: req.result };
+      syncRecord('milestones', fullRecord);
+      resolve(fullRecord);
+    };
     req.onerror = () => reject(req.error);
   });
 }
@@ -179,7 +195,10 @@ export function updateMilestone(id, changes) {
     getReq.onsuccess = () => {
       const updated = { ...getReq.result, ...changes };
       const putReq = store.put(updated);
-      putReq.onsuccess = () => resolve(updated);
+      putReq.onsuccess = () => {
+        syncRecord('milestones', updated);
+        resolve(updated);
+      };
       putReq.onerror = () => reject(putReq.error);
     };
     getReq.onerror = () => reject(getReq.error);
@@ -189,7 +208,10 @@ export function updateMilestone(id, changes) {
 export function deleteMilestone(id) {
   return new Promise((resolve, reject) => {
     const tx = getDB().transaction(['milestones', 'tasks'], 'readwrite');
-    tx.oncomplete = () => resolve();
+    tx.oncomplete = () => {
+      deleteRecord('milestones', id); // Supabase FK cascade handles child tasks
+      resolve();
+    };
     tx.onerror = () => reject(tx.error);
 
     tx.objectStore('milestones').delete(id);
@@ -228,7 +250,11 @@ export function createTask(data) {
       createdAt: Date.now(),
     };
     const req = store.add(record);
-    req.onsuccess = () => resolve({ ...record, id: req.result });
+    req.onsuccess = () => {
+      const fullRecord = { ...record, id: req.result };
+      syncRecord('tasks', fullRecord);
+      resolve(fullRecord);
+    };
     req.onerror = () => reject(req.error);
   });
 }
@@ -259,7 +285,10 @@ export function updateTask(id, changes) {
     getReq.onsuccess = () => {
       const updated = { ...getReq.result, ...changes };
       const putReq = store.put(updated);
-      putReq.onsuccess = () => resolve(updated);
+      putReq.onsuccess = () => {
+        syncRecord('tasks', updated);
+        resolve(updated);
+      };
       putReq.onerror = () => reject(putReq.error);
     };
     getReq.onerror = () => reject(getReq.error);
@@ -270,7 +299,10 @@ export function deleteTask(id) {
   return new Promise((resolve, reject) => {
     const tx = getDB().transaction('tasks', 'readwrite');
     const req = tx.objectStore('tasks').delete(id);
-    req.onsuccess = () => resolve();
+    req.onsuccess = () => {
+      deleteRecord('tasks', id);
+      resolve();
+    };
     req.onerror = () => reject(req.error);
   });
 }
@@ -290,7 +322,11 @@ export function createSession(data) {
       finishedAt: Date.now(),
     };
     const req = store.add(record);
-    req.onsuccess = () => resolve({ ...record, id: req.result });
+    req.onsuccess = () => {
+      const fullRecord = { ...record, id: req.result };
+      syncRecord('sessions', fullRecord);
+      resolve(fullRecord);
+    };
     req.onerror = () => reject(req.error);
   });
 }

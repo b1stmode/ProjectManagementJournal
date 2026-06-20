@@ -1,4 +1,5 @@
 import { initDB } from './db.js';
+import { firstTimeSync } from './sync.js';
 import { initRouter, defineRoute, navigate } from './router.js';
 import { renderHome } from './views/home.js';
 import { renderProjects } from './views/projects.js';
@@ -8,6 +9,7 @@ async function boot() {
   try {
     await initDB();
     console.log('[App] DB ready');
+    await firstTimeSync();
   } catch (err) {
     console.error('[App] DB init failed:', err);
     document.getElementById('app').innerHTML =

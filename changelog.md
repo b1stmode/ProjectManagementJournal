@@ -195,3 +195,32 @@
 **Fix:** Sidebar is now a slide-in overlay (`width: min(280px, 85vw)`, z-index 50). Main content fills the full screen width by default. A "Projects" button (visible only at ≤640px) opens the overlay. Backdrop covers the rest of the screen and dismisses on tap. Desktop layout is unchanged.
 
 **Key decision:** Backdrop appended to `.home-view` instead of `document.body` — automatically destroyed when `app.innerHTML` is replaced on any navigation or re-render, no manual cleanup needed.
+
+---
+
+## 2026-06-20 — Session 3
+
+### M7 — Supabase Database + Sync ✓
+
+**Files created:**
+- `js/config.js` — Supabase project URL + anon public key (committed; anon key is designed to be public, security enforced by RLS)
+- `js/supabase.js` — Supabase client via CDN ESM import (`@supabase/supabase-js@2`)
+- `js/sync.js` — full sync layer: `syncRecord`, `deleteRecord`, `syncUp`, `syncDown`, `firstTimeSync`; camelCase↔snake_case field mapping helpers
+
+**Files modified:**
+- `js/db.js` — added `import { syncRecord, deleteRecord } from './sync.js'`; all 10 mutation functions now fire-and-forget sync after each successful IDB write
+- `js/app.js` — added `import { firstTimeSync } from './sync.js'`; `firstTimeSync()` called in boot sequence after `initDB()`
+- `sw.js` — added `config.js`, `supabase.js`, `sync.js` to PRECACHE_URLS
+
+**Supabase setup (manual, one-time):**
+- 4 tables created: `projects`, `milestones`, `tasks`, `sessions` — bigint PKs, client-provided (no Supabase sequences), FK CASCADE on deletes, Unix ms timestamps as bigint
+- RLS enabled on all tables with open `USING (true)` policies — locked down in M12 when Supabase Auth is added
+- Hosted region: West EU (Ireland)
+
+**Architecture decisions:**
+- **ID strategy:** IDB autoIncrement integers used as-is in Supabase (client provides the value). Works because single-user sequential use means no ID collisions. IDB spec guarantees key generator advances past any ID provided via `put()`, so pulling Supabase data into a fresh IDB works correctly.
+- **Write-through (fire and forget):** Sync calls have no `await` — IDB write returns immediately to the caller; Supabase call runs in background. Failures logged to console but silently swallowed. No retry queue (M8).
+- **firstTimeSync logic:** On load, checks both sides — Supabase empty + IDB has data → `syncUp` (push existing local data to cloud); IDB empty + Supabase has data → `syncDown` (pull cloud data into fresh IDB); both have data → trust local (M8 handles conflicts).
+- **Circular import avoided:** `sync.js` uses dynamic `await import('./db.js')` inside async functions rather than a static top-level import. `db.js` imports `sync.js` statically. No initialization-order issues.
+- **config.js committed:** No build step means CF Pages can't inject env vars — file must exist in repo. Anon keys are public by Supabase design.
+- **Offline:** `navigator.onLine` guard on all Supabase calls — app continues to work offline, sync simply skipped.
