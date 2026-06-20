@@ -1,11 +1,12 @@
 import {
-  getProject, getAllProjects, updateProject,
+  getProject, getAllProjects, updateProject, deleteProject,
   createMilestone, getMilestonesForProject, updateMilestone, deleteMilestone,
   createTask, getTasksForMilestone, getTask, updateTask, deleteTask,
   getSessionsForProject,
 } from '../db.js';
 import { openModal, closeModal, openConfirmModal } from '../utils/modal.js';
 import { getActiveMilestone, checkMilestoneCompletion } from '../utils/milestones.js';
+import { navigate } from '../router.js';
 
 let currentProjectId = null;
 
@@ -27,6 +28,8 @@ export async function renderProject(params) {
         <div class="project-header-top">
           <h1 class="project-title">${escapeHtml(project.name)}</h1>
           <span class="status-badge ${project.status}">${project.status}</span>
+          <button class="btn btn-ghost" id="edit-project-btn" style="font-size: var(--text-xs); padding: 2px var(--space-3);">Edit</button>
+          <button class="btn btn-danger" id="delete-project-btn" style="font-size: var(--text-xs); padding: 2px var(--space-3);">Delete</button>
           ${project.status !== 'active'
             ? `<button class="btn btn-primary" id="set-active-btn">Set Active</button>`
             : ''}
@@ -52,6 +55,40 @@ export async function renderProject(params) {
       </div>
     </div>
   `;
+
+  document.getElementById('edit-project-btn').addEventListener('click', () => {
+    openModal(
+      'Edit Project',
+      `
+        <div class="form-field">
+          <label class="form-label" for="edit-proj-name">Name</label>
+          <input class="form-input" id="edit-proj-name" type="text" value="${escapeHtml(project.name)}" />
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="edit-proj-desc">Description</label>
+          <textarea class="form-textarea" id="edit-proj-desc">${escapeHtml(project.description ?? '')}</textarea>
+        </div>
+      `,
+      async (modal) => {
+        const name = modal.querySelector('#edit-proj-name').value.trim();
+        if (!name) return;
+        await updateProject(project.id, { name, description: modal.querySelector('#edit-proj-desc').value.trim() });
+        closeModal();
+        await renderProject({ id: String(project.id) });
+      },
+      'Save'
+    );
+  });
+
+  document.getElementById('delete-project-btn').addEventListener('click', () => {
+    openConfirmModal(
+      `Delete "${escapeHtml(project.name)}"? All milestones, tasks, and sessions will be permanently removed.`,
+      async () => {
+        await deleteProject(project.id);
+        navigate('/');
+      }
+    );
+  });
 
   document.getElementById('set-active-btn')?.addEventListener('click', () => handleSetActive(project));
   document.getElementById('add-milestone-btn').addEventListener('click', () => openMilestoneModal(null));

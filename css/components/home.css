@@ -197,18 +197,21 @@
 .mobile-sidebar-btn {
   display: none;
   background: none;
-  border: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
   font-family: inherit;
   font-size: var(--text-xs);
-  color: var(--text-muted);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
   cursor: pointer;
-  padding: 0;
+  padding: var(--space-1) var(--space-3);
   margin-bottom: var(--space-5);
-  transition: color var(--transition-fast);
+  transition: border-color var(--transition-fast), color var(--transition-fast);
 }
 
 .mobile-sidebar-btn:hover {
-  color: var(--text-secondary);
+  border-color: var(--accent);
+  color: var(--text-primary);
 }
 
 /* ─── Responsive ──────────────────────── */

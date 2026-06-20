@@ -125,7 +125,7 @@ function renderSidebarItem(project, milestones) {
 
 function renderMainActive(activeProject, activeMilestone, todaysTasks) {
   return `
-    <button class="mobile-sidebar-btn" id="open-sidebar-btn">Projects</button>
+    <button class="mobile-sidebar-btn" id="open-sidebar-btn">☰ Projects</button>
 
     <div class="home-greeting">
       <h1 class="home-greeting-title">${escapeHtml(activeProject.name)}</h1>
@@ -151,7 +151,7 @@ function renderMainActive(activeProject, activeMilestone, todaysTasks) {
 
 function renderMainEmpty() {
   return `
-    <button class="mobile-sidebar-btn" id="open-sidebar-btn">Projects</button>
+    <button class="mobile-sidebar-btn" id="open-sidebar-btn">☰ Projects</button>
     <div class="home-no-active">
       <p class="home-no-active-title">No active project.</p>
       <p class="home-empty-text">Select a project from the sidebar and use <strong>Set Active</strong> to start a session.</p>
