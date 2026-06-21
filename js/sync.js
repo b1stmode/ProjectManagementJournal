@@ -126,18 +126,20 @@ export async function flushQueue() {
 // ─── Push all local IDB data up to Supabase ────────────────────────────────
 
 async function syncUp() {
-  const { getAllProjects, getMilestonesForProject, getTasksForProject, getSessionsForProject } =
+  const { getAllProjects, getMilestonesForProject, getTasksForProject, getSessionsForProject, getImportantDatesForProject } =
     await import('./db.js');
 
   const projects   = await getAllProjects();
   const milestones = (await Promise.all(projects.map(p => getMilestonesForProject(p.id)))).flat();
   const tasks      = (await Promise.all(projects.map(p => getTasksForProject(p.id)))).flat();
   const sessions   = (await Promise.all(projects.map(p => getSessionsForProject(p.id)))).flat();
+  const dates      = (await Promise.all(projects.map(p => getImportantDatesForProject(p.id)))).flat();
 
   if (projects.length)   await supabase.from('projects').upsert(projects.map(toSnake));
   if (milestones.length) await supabase.from('milestones').upsert(milestones.map(toSnake));
   if (tasks.length)      await supabase.from('tasks').upsert(tasks.map(toSnake));
   if (sessions.length)   await supabase.from('sessions').upsert(sessions.map(toSnake));
+  if (dates.length)      await supabase.from('important_dates').upsert(dates.map(toSnake));
 }
 
 // ─── Pull Supabase data into local IDB ────────────────────────────────────
@@ -148,16 +150,16 @@ async function syncDown() {
   const idb = getDB();
 
   // Phase 1: read local keys in a readonly transaction (before the async fetch)
-  const [localProjIds, localMileIds, localTaskIds, localSessIds] = await new Promise((resolve, reject) => {
-    const stores = ['projects', 'milestones', 'tasks', 'sessions'];
+  const [localProjIds, localMileIds, localTaskIds, localSessIds, localDateIds] = await new Promise((resolve, reject) => {
+    const stores = ['projects', 'milestones', 'tasks', 'sessions', 'importantDates'];
     const tx = idb.transaction(stores, 'readonly');
-    const results = [null, null, null, null];
+    const results = [null, null, null, null, null];
     let done = 0;
     stores.forEach((name, i) => {
       const req = tx.objectStore(name).getAllKeys();
       req.onsuccess = () => {
         results[i] = req.result;
-        if (++done === 4) resolve(results);
+        if (++done === 5) resolve(results);
       };
       req.onerror = () => reject(req.error);
     });
@@ -169,15 +171,17 @@ async function syncDown() {
     { data: sbMilestones, error: e2 },
     { data: sbTasks,      error: e3 },
     { data: sbSessions,   error: e4 },
+    { data: sbDates,      error: e5 },
   ] = await Promise.all([
     supabase.from('projects').select('*'),
     supabase.from('milestones').select('*'),
     supabase.from('tasks').select('*'),
     supabase.from('sessions').select('*'),
+    supabase.from('important_dates').select('*'),
   ]);
 
-  if (e1 || e2 || e3 || e4) {
-    console.warn('[sync] syncDown fetch error', e1 ?? e2 ?? e3 ?? e4);
+  if (e1 || e2 || e3 || e4 || e5) {
+    console.warn('[sync] syncDown fetch error', e1 ?? e2 ?? e3 ?? e4 ?? e5);
     return;
   }
 
@@ -185,22 +189,25 @@ async function syncDown() {
   const sbMileIds = new Set((sbMilestones || []).map(r => r.id));
   const sbTaskIds = new Set((sbTasks      || []).map(r => r.id));
   const sbSessIds = new Set((sbSessions   || []).map(r => r.id));
+  const sbDateIds = new Set((sbDates      || []).map(r => r.id));
 
   // Phase 3: write all changes in a single readwrite transaction
   await new Promise((resolve, reject) => {
-    const tx = idb.transaction(['projects', 'milestones', 'tasks', 'sessions'], 'readwrite');
+    const tx = idb.transaction(['projects', 'milestones', 'tasks', 'sessions', 'importantDates'], 'readwrite');
 
     // Upsert all Supabase records
     for (const r of (sbProjects   || [])) tx.objectStore('projects').put(toCamel(r));
     for (const r of (sbMilestones || [])) tx.objectStore('milestones').put(toCamel(r));
     for (const r of (sbTasks      || [])) tx.objectStore('tasks').put(toCamel(r));
     for (const r of (sbSessions   || [])) tx.objectStore('sessions').put(toCamel(r));
+    for (const r of (sbDates      || [])) tx.objectStore('importantDates').put(toCamel(r));
 
     // Delete local records no longer present in Supabase (deleted on another device)
     for (const id of localProjIds) if (!sbProjIds.has(id)) tx.objectStore('projects').delete(id);
     for (const id of localMileIds) if (!sbMileIds.has(id)) tx.objectStore('milestones').delete(id);
     for (const id of localTaskIds) if (!sbTaskIds.has(id)) tx.objectStore('tasks').delete(id);
     for (const id of localSessIds) if (!sbSessIds.has(id)) tx.objectStore('sessions').delete(id);
+    for (const id of localDateIds) if (!sbDateIds.has(id)) tx.objectStore('importantDates').delete(id);
 
     tx.oncomplete = resolve;
     tx.onerror = () => reject(tx.error);

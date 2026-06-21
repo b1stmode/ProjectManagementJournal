@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pm-journal-v1';
+const CACHE_NAME = 'pm-journal-v2';
 const FONTS_CACHE = 'pm-journal-fonts';
 
 const PRECACHE_URLS = [
@@ -14,6 +14,7 @@ const PRECACHE_URLS = [
   '/css/components/tasks.css',
   '/css/components/home.css',
   '/css/components/sessions.css',
+  '/css/components/calendar.css',
   '/js/app.js',
   '/js/router.js',
   '/js/db.js',

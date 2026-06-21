@@ -1,7 +1,7 @@
 import { syncRecord, deleteRecord } from './sync.js';
 
 const DB_NAME = 'pmjournal';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let db = null;
 
@@ -38,6 +38,12 @@ export function initDB() {
         const sessions = database.createObjectStore('sessions', { keyPath: 'id', autoIncrement: true });
         sessions.createIndex('projectId', 'projectId', { unique: false });
         sessions.createIndex('finishedAt', 'finishedAt', { unique: false });
+      }
+
+      if (!database.objectStoreNames.contains('importantDates')) {
+        const dates = database.createObjectStore('importantDates', { keyPath: 'id', autoIncrement: true });
+        dates.createIndex('projectId', 'projectId', { unique: false });
+        dates.createIndex('date', 'date', { unique: false });
       }
     };
 
@@ -118,9 +124,9 @@ export function updateProject(id, changes) {
 
 export function deleteProject(id) {
   return new Promise((resolve, reject) => {
-    const tx = getDB().transaction(['projects', 'milestones', 'tasks', 'sessions'], 'readwrite');
+    const tx = getDB().transaction(['projects', 'milestones', 'tasks', 'sessions', 'importantDates'], 'readwrite');
     tx.oncomplete = () => {
-      deleteRecord('projects', id); // Supabase FK cascade handles milestones/tasks/sessions
+      deleteRecord('projects', id); // Supabase FK cascade handles child records
       resolve();
     };
     tx.onerror = () => reject(tx.error);
@@ -140,6 +146,11 @@ export function deleteProject(id) {
     tx.objectStore('sessions').index('projectId')
       .getAllKeys(IDBKeyRange.only(id)).onsuccess = (e) => {
         e.target.result.forEach(key => tx.objectStore('sessions').delete(key));
+      };
+
+    tx.objectStore('importantDates').index('projectId')
+      .getAllKeys(IDBKeyRange.only(id)).onsuccess = (e) => {
+        e.target.result.forEach(key => tx.objectStore('importantDates').delete(key));
       };
   });
 }
@@ -336,6 +347,68 @@ export function getSessionsForProject(projectId) {
     const tx = getDB().transaction('sessions', 'readonly');
     const req = tx.objectStore('sessions').index('projectId').getAll(IDBKeyRange.only(projectId));
     req.onsuccess = () => resolve(req.result.sort((a, b) => b.finishedAt - a.finishedAt));
+    req.onerror = () => reject(req.error);
+  });
+}
+
+// --- Important Dates ---
+
+export function createImportantDate(data) {
+  return new Promise((resolve, reject) => {
+    const tx = getDB().transaction('importantDates', 'readwrite');
+    const store = tx.objectStore('importantDates');
+    const record = {
+      projectId: data.projectId,
+      name: data.name,
+      date: data.date,
+      note: data.note ?? '',
+      createdAt: Date.now(),
+    };
+    const req = store.add(record);
+    req.onsuccess = () => {
+      const fullRecord = { ...record, id: req.result };
+      syncRecord('important_dates', fullRecord);
+      resolve(fullRecord);
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export function getImportantDatesForProject(projectId) {
+  return new Promise((resolve, reject) => {
+    const tx = getDB().transaction('importantDates', 'readonly');
+    const req = tx.objectStore('importantDates').index('projectId').getAll(IDBKeyRange.only(projectId));
+    req.onsuccess = () => resolve(req.result.sort((a, b) => a.date.localeCompare(b.date)));
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export function updateImportantDate(id, changes) {
+  return new Promise((resolve, reject) => {
+    const tx = getDB().transaction('importantDates', 'readwrite');
+    const store = tx.objectStore('importantDates');
+    const getReq = store.get(id);
+    getReq.onsuccess = () => {
+      const updated = { ...getReq.result, ...changes };
+      const putReq = store.put(updated);
+      putReq.onsuccess = () => {
+        syncRecord('important_dates', updated);
+        resolve(updated);
+      };
+      putReq.onerror = () => reject(putReq.error);
+    };
+    getReq.onerror = () => reject(getReq.error);
+  });
+}
+
+export function deleteImportantDate(id) {
+  return new Promise((resolve, reject) => {
+    const tx = getDB().transaction('importantDates', 'readwrite');
+    const req = tx.objectStore('importantDates').delete(id);
+    req.onsuccess = () => {
+      deleteRecord('important_dates', id);
+      resolve();
+    };
     req.onerror = () => reject(req.error);
   });
 }

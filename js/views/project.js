@@ -3,6 +3,7 @@ import {
   createMilestone, getMilestonesForProject, updateMilestone, deleteMilestone,
   createTask, getTasksForMilestone, getTask, updateTask, deleteTask,
   getSessionsForProject,
+  createImportantDate, getImportantDatesForProject, updateImportantDate, deleteImportantDate,
 } from '../db.js';
 import { openModal, closeModal, openConfirmModal } from '../utils/modal.js';
 import { getActiveMilestone, checkMilestoneCompletion } from '../utils/milestones.js';
@@ -45,6 +46,14 @@ export async function renderProject(params) {
           <button class="btn btn-primary" id="add-milestone-btn">+ Add Milestone</button>
         </div>
         <div id="milestone-list-container"></div>
+      </div>
+
+      <div class="dates-section">
+        <div class="dates-header">
+          <span class="dates-title">Important Dates</span>
+          <button class="btn btn-ghost" id="add-date-btn" style="font-size: var(--text-xs); padding: 2px var(--space-3);">+ Add Date</button>
+        </div>
+        <div id="date-list-container"></div>
       </div>
 
       <div class="sessions-section">
@@ -92,8 +101,10 @@ export async function renderProject(params) {
 
   document.getElementById('set-active-btn')?.addEventListener('click', () => handleSetActive(project));
   document.getElementById('add-milestone-btn').addEventListener('click', () => openMilestoneModal(null));
+  document.getElementById('add-date-btn').addEventListener('click', () => openDateModal(null));
 
   await renderMilestones();
+  await renderImportantDates();
   await renderSessions();
 }
 
@@ -354,6 +365,101 @@ async function handleDeleteMilestone(milestone) {
   });
 }
 
+async function renderImportantDates() {
+  const container = document.getElementById('date-list-container');
+  if (!container) return;
+
+  const dates = await getImportantDatesForProject(currentProjectId);
+
+  if (dates.length === 0) {
+    container.innerHTML = `<div class="dates-empty">No important dates yet.</div>`;
+    return;
+  }
+
+  container.innerHTML = `
+    <ul class="date-list">
+      ${dates.map(d => `
+        <li class="date-item" data-date-id="${d.id}">
+          <div class="date-item-body">
+            <div class="date-item-main">
+              <span class="date-item-date">${formatDateStr(d.date)}</span>
+              <span class="date-item-name">${escapeHtml(d.name)}</span>
+            </div>
+            ${d.note ? `<p class="date-item-note">${escapeHtml(d.note)}</p>` : ''}
+          </div>
+          <div class="date-item-actions">
+            <button class="btn btn-ghost" data-action="edit-date" data-date-id="${d.id}" style="font-size: var(--text-xs); padding: 2px var(--space-3);">Edit</button>
+            <button class="btn btn-danger" data-action="delete-date" data-date-id="${d.id}" style="font-size: var(--text-xs); padding: 2px var(--space-3);">Delete</button>
+          </div>
+        </li>
+      `).join('')}
+    </ul>
+  `;
+
+  container.querySelectorAll('[data-action="edit-date"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = Number(btn.dataset.dateId);
+      const date = dates.find(d => d.id === id);
+      if (date) openDateModal(date);
+    });
+  });
+
+  container.querySelectorAll('[data-action="delete-date"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = Number(btn.dataset.dateId);
+      const date = dates.find(d => d.id === id);
+      if (date) handleDeleteDate(date);
+    });
+  });
+}
+
+function openDateModal(existing) {
+  const isEdit = existing !== null;
+  openModal(
+    isEdit ? 'Edit Date' : 'New Important Date',
+    `
+      <div class="form-field">
+        <label class="form-label" for="date-name">Name</label>
+        <input class="form-input" id="date-name" type="text" placeholder="e.g. Demo Day, Release, Deadline"
+               value="${isEdit ? escapeHtml(existing.name) : ''}" />
+      </div>
+      <div class="form-field">
+        <label class="form-label" for="date-value">Date</label>
+        <input class="form-input" id="date-value" type="date"
+               value="${isEdit ? existing.date : ''}" />
+      </div>
+      <div class="form-field">
+        <label class="form-label" for="date-note">Note</label>
+        <textarea class="form-textarea" id="date-note" placeholder="Optional note">${isEdit ? escapeHtml(existing.note ?? '') : ''}</textarea>
+      </div>
+    `,
+    async (modal) => {
+      const name = modal.querySelector('#date-name').value.trim();
+      const date = modal.querySelector('#date-value').value;
+      if (!name || !date) return;
+      const note = modal.querySelector('#date-note').value.trim();
+
+      if (isEdit) {
+        await updateImportantDate(existing.id, { name, date, note });
+      } else {
+        await createImportantDate({ projectId: currentProjectId, name, date, note });
+      }
+
+      closeModal();
+      await renderImportantDates();
+    },
+    isEdit ? 'Save' : 'Create'
+  );
+}
+
+async function handleDeleteDate(date) {
+  openConfirmModal(`Delete "${escapeHtml(date.name)}"?`, async () => {
+    closeModal();
+    await deleteImportantDate(date.id);
+    await renderImportantDates();
+  });
+}
+
 async function renderSessions() {
   const container = document.getElementById('session-list-container');
   if (!container) return;
@@ -412,6 +518,12 @@ function renderSessionEntry(session, taskNames) {
 
 function formatDate(ts) {
   return new Date(ts).toISOString().slice(0, 10);
+}
+
+function formatDateStr(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${d} ${months[m - 1]} ${y}`;
 }
 
 function escapeHtml(str) {

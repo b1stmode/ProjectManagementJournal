@@ -3,6 +3,7 @@ import {
   getMilestonesForProject,
   getTasksForMilestone, getTasksForProject, getTask, updateTask,
   createSession,
+  getImportantDatesForProject,
 } from '../db.js';
 import { navigate } from '../router.js';
 import { openModal, closeModal } from '../utils/modal.js';
@@ -12,7 +13,12 @@ export async function renderHome(_params) {
   const app = document.getElementById('app');
 
   const allProjects = await getAllProjects();
-  const milestoneGroups = await Promise.all(allProjects.map(p => getMilestonesForProject(p.id)));
+  const [milestoneGroups, dateGroups] = await Promise.all([
+    Promise.all(allProjects.map(p => getMilestonesForProject(p.id))),
+    Promise.all(allProjects.map(p => getImportantDatesForProject(p.id))),
+  ]);
+  const allDates = dateGroups.flat();
+  const projectNameMap = Object.fromEntries(allProjects.map(p => [p.id, p.name]));
 
   const paired = allProjects.map((p, i) => ({ project: p, milestones: milestoneGroups[i] }));
   paired.sort((a, b) => {
@@ -51,10 +57,16 @@ export async function renderHome(_params) {
       <main class="home-main">
         <div class="home-main-inner">
           ${activeProject
-            ? renderMainActive(activeProject, activeMilestone, todaysTasks)
+            ? renderMainActive(activeProject, activeMilestone, todaysTasks, buildAlertsHtml(allDates, projectNameMap))
             : renderMainEmpty()}
         </div>
       </main>
+      <aside class="home-calendar-sidebar">
+        <div class="calendar-sidebar-header">
+          <span class="calendar-sidebar-title">Calendar</span>
+        </div>
+        <div id="calendar-container"></div>
+      </aside>
     </div>
   `;
 
@@ -68,35 +80,53 @@ export async function renderHome(_params) {
     btn.addEventListener('click', () => handleToggleTask(Number(btn.dataset.taskId)));
   });
 
+  const calContainer = document.getElementById('calendar-container');
+  if (calContainer) {
+    const now = new Date();
+    renderCalendar(calContainer, allDates, projectNameMap, now.getMonth(), now.getFullYear());
+  }
+
   document.getElementById('finish-session-btn')?.addEventListener('click', async () => {
     if (!activeProject || !activeMilestone) return;
     await openSessionModal(activeProject, activeMilestone);
   });
 
-  // Mobile sidebar overlay
+  // Mobile sidebar overlays (projects left, calendar right — opening one closes the other)
   const openSidebarBtn = document.getElementById('open-sidebar-btn');
+  const openCalendarBtn = document.getElementById('open-calendar-btn');
   const sidebar = document.querySelector('.home-sidebar');
-  if (openSidebarBtn && sidebar) {
+  const calSidebar = document.querySelector('.home-calendar-sidebar');
+  const homeView = document.querySelector('.home-view');
+
+  if (homeView) {
     const backdrop = document.createElement('div');
     backdrop.className = 'sidebar-backdrop';
-    document.querySelector('.home-view').appendChild(backdrop);
+    homeView.appendChild(backdrop);
 
-    const openSidebar = () => {
-      sidebar.classList.add('is-open');
-      backdrop.classList.add('is-active');
-    };
-    const closeSidebar = () => {
-      sidebar.classList.remove('is-open');
+    const closeAll = () => {
+      sidebar?.classList.remove('is-open');
+      calSidebar?.classList.remove('is-open');
       backdrop.classList.remove('is-active');
     };
 
-    openSidebarBtn.addEventListener('click', openSidebar);
-    backdrop.addEventListener('click', closeSidebar);
+    openSidebarBtn?.addEventListener('click', () => {
+      calSidebar?.classList.remove('is-open');
+      sidebar?.classList.add('is-open');
+      backdrop.classList.add('is-active');
+    });
+
+    openCalendarBtn?.addEventListener('click', () => {
+      sidebar?.classList.remove('is-open');
+      calSidebar?.classList.add('is-open');
+      backdrop.classList.add('is-active');
+    });
+
+    backdrop.addEventListener('click', closeAll);
     document.addEventListener('keydown', function onEsc(e) {
-      if (e.key === 'Escape' && sidebar.classList.contains('is-open')) closeSidebar();
+      if (e.key === 'Escape') closeAll();
     });
     document.querySelectorAll('[data-action="open-project"]').forEach(el => {
-      el.addEventListener('click', closeSidebar);
+      el.addEventListener('click', closeAll);
     });
   }
 }
@@ -123,9 +153,12 @@ function renderSidebarItem(project, milestones) {
   `;
 }
 
-function renderMainActive(activeProject, activeMilestone, todaysTasks) {
+function renderMainActive(activeProject, activeMilestone, todaysTasks, alertsHtml) {
   return `
-    <button class="mobile-sidebar-btn" id="open-sidebar-btn">☰ Projects</button>
+    <div class="mobile-top-bar">
+      <button class="mobile-sidebar-btn" id="open-sidebar-btn">☰ Projects</button>
+      <button class="mobile-sidebar-btn" id="open-calendar-btn">Calendar ☰</button>
+    </div>
 
     <div class="home-greeting">
       <h1 class="home-greeting-title">${escapeHtml(activeProject.name)}</h1>
@@ -135,6 +168,8 @@ function renderMainActive(activeProject, activeMilestone, todaysTasks) {
           : 'All milestones complete.'}
       </p>
     </div>
+
+    ${alertsHtml}
 
     <div class="home-section">
       <h2 class="home-section-title">Today's Tasks</h2>
@@ -151,7 +186,10 @@ function renderMainActive(activeProject, activeMilestone, todaysTasks) {
 
 function renderMainEmpty() {
   return `
-    <button class="mobile-sidebar-btn" id="open-sidebar-btn">☰ Projects</button>
+    <div class="mobile-top-bar">
+      <button class="mobile-sidebar-btn" id="open-sidebar-btn">☰ Projects</button>
+      <button class="mobile-sidebar-btn" id="open-calendar-btn">Calendar ☰</button>
+    </div>
     <div class="home-no-active">
       <p class="home-no-active-title">No active project.</p>
       <p class="home-empty-text">Select a project from the sidebar and use <strong>Set Active</strong> to start a session.</p>
@@ -295,6 +333,143 @@ async function openSessionModal(project, activeMilestone) {
 
     close();
     await renderHome({});
+  });
+}
+
+function getDaysUntil(dateStr) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const target = new Date(y, m - 1, d);
+  return Math.round((target - today) / 86400000);
+}
+
+function formatDaysUntil(n) {
+  if (n === 0) return 'today';
+  if (n === 1) return 'tomorrow';
+  return `in ${n} days`;
+}
+
+function buildAlertsHtml(allDates, projectNameMap) {
+  const upcoming = allDates
+    .map(d => ({ ...d, daysUntil: getDaysUntil(d.date) }))
+    .filter(d => d.daysUntil >= 0 && d.daysUntil <= 7)
+    .sort((a, b) => a.daysUntil - b.daysUntil);
+
+  if (upcoming.length === 0) return '';
+
+  return `
+    <div class="home-alerts">
+      ${upcoming.map(d => `
+        <div class="home-alert-item">
+          <span class="home-alert-name">${escapeHtml(d.name)}</span>
+          <span class="home-alert-meta">— ${escapeHtml(projectNameMap[d.projectId] ?? '')} · ${formatDaysUntil(d.daysUntil)}</span>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function renderCalendar(container, allDates, projectNameMap, month, year) {
+  const today = new Date();
+  const todayYear = today.getFullYear();
+  const todayMonth = today.getMonth();
+  const todayDate = today.getDate();
+
+  const dateMap = {};
+  for (const d of allDates) {
+    if (!dateMap[d.date]) dateMap[d.date] = [];
+    dateMap[d.date].push(d);
+  }
+
+  const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDayOfWeek = (new Date(year, month, 1).getDay() + 6) % 7; // Mon=0, Sun=6
+
+  const cells = [];
+  for (let i = 0; i < firstDayOfWeek; i++) {
+    cells.push('<div class="cal-day cal-day-empty"></div>');
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    const mm = String(month + 1).padStart(2, '0');
+    const dd = String(d).padStart(2, '0');
+    const key = `${year}-${mm}-${dd}`;
+    const hasDates = !!dateMap[key];
+    const isToday = year === todayYear && month === todayMonth && d === todayDate;
+    cells.push(`
+      <div class="cal-day${isToday ? ' is-today' : ''}${hasDates ? ' has-dates' : ''}"
+           data-day="${d}" data-key="${key}">
+        <span class="cal-day-num">${d}</span>
+        ${hasDates ? '<span class="cal-dot"></span>' : ''}
+      </div>
+    `);
+  }
+
+  container.innerHTML = `
+    <div class="calendar">
+      <div class="cal-header">
+        <button class="btn btn-ghost btn-icon" id="cal-prev">‹</button>
+        <span class="cal-month-label">${MONTH_NAMES[month]} ${year}</span>
+        <button class="btn btn-ghost btn-icon" id="cal-next">›</button>
+      </div>
+      <div class="cal-grid">
+        <div class="cal-weekday">Mo</div>
+        <div class="cal-weekday">Tu</div>
+        <div class="cal-weekday">We</div>
+        <div class="cal-weekday">Th</div>
+        <div class="cal-weekday">Fr</div>
+        <div class="cal-weekday">Sa</div>
+        <div class="cal-weekday">Su</div>
+        ${cells.join('')}
+      </div>
+      <div class="cal-day-panel"></div>
+    </div>
+  `;
+
+  container.querySelector('#cal-prev').addEventListener('click', () => {
+    let m = month - 1, y = year;
+    if (m < 0) { m = 11; y--; }
+    renderCalendar(container, allDates, projectNameMap, m, y);
+  });
+
+  container.querySelector('#cal-next').addEventListener('click', () => {
+    let m = month + 1, y = year;
+    if (m > 11) { m = 0; y++; }
+    renderCalendar(container, allDates, projectNameMap, m, y);
+  });
+
+  let selectedDay = null;
+  const panel = container.querySelector('.cal-day-panel');
+
+  container.querySelectorAll('.cal-day.has-dates').forEach(cell => {
+    cell.addEventListener('click', () => {
+      const day = Number(cell.dataset.day);
+      const key = cell.dataset.key;
+
+      if (selectedDay === day) {
+        selectedDay = null;
+        cell.classList.remove('is-selected');
+        panel.innerHTML = '';
+        return;
+      }
+
+      container.querySelectorAll('.cal-day.is-selected').forEach(c => c.classList.remove('is-selected'));
+      selectedDay = day;
+      cell.classList.add('is-selected');
+
+      const entries = dateMap[key] || [];
+      panel.innerHTML = `
+        <ul class="cal-panel-list">
+          ${entries.map(e => `
+            <li class="cal-panel-item">
+              <span class="cal-panel-name">${escapeHtml(e.name)}</span>
+              <span class="cal-panel-project">${escapeHtml(projectNameMap[e.projectId] ?? '')}</span>
+              ${e.note ? `<p class="cal-panel-note">${escapeHtml(e.note)}</p>` : ''}
+            </li>
+          `).join('')}
+        </ul>
+      `;
+    });
   });
 }
 
