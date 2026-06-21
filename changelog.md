@@ -384,3 +384,31 @@ Both devices independently generate small sequential integer IDs (1, 2, 3…) fr
 The `important_dates` table was also missing the `name` column entirely. `planned_sessions` was missing `type`, `task_ids`, `note`. `backlog` was missing `text` and `order`. Added via `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`.
 
 **SW cache** bumped to `pm-journal-v5` to serve updated `db.js` and `sync.js`.
+
+---
+
+### Post-M11 — Session-aware home workflow
+
+**Problem:** The home screen always showed the full active milestone task list regardless of whether the user was in a session or not. It felt like a passive to-do dump rather than an action-focused command center. There was no concept of "session in progress."
+
+**New home states (4 total):**
+1. **No active project** — unchanged "No active project" message
+2. **Idle** — active project exists, no session in progress, nothing planned for today → shows project/milestone header, "No active session." message, Start Session button
+3. **Prompt** — active project exists + a Planned Session exists for today → shows "Mid session planned for today · X tasks" prompt card with "Start This Session" and "Start Different" buttons
+4. **Session active** — session in progress (tracked in `localStorage`) → shows only that session's fixed task list, session type label, "All tasks done" message when complete, Finish Session button
+
+**Session state persistence:** `localStorage` key `pm-active-session` stores `{ projectId, milestoneId, type, taskIds, startedAt, plannedSessionId }`. Written on session start, cleared on Finish Session save. Survives page reloads. Validated on every `renderHome` — stale entry (project no longer active) is auto-cleared.
+
+**Start Session flow:** Opens a small modal with Small/Mid/Big type selector and task preview (same slicing as planned sessions: small=2, mid=5, big=all). On confirm: writes localStorage, re-renders home in session state.
+
+**Start This Session (from prompt):** No modal. Directly writes planned session's type + taskIds to localStorage (including `plannedSessionId`). Re-renders home.
+
+**Finish Session flow:** After saving the session log, `localStorage` is cleared and — if the session was started from a planned session — `deletePlannedSession(plannedSessionId)` is called so the consumed event disappears from the calendar.
+
+**Task toggle:** `handleToggleTask` unchanged. Milestone completion chain still runs behind the scenes. Session task list is fixed at start — milestone advancing mid-session doesn't change what the session view shows.
+
+**Files modified:**
+- `js/views/home.js` — session state determination added to `renderHome`; `renderMainActive` replaced by `renderMainSession`, `renderMainPrompt`, `renderMainIdle` (plus a shared `mobileTopBar()` and `projectHeader()` helper to avoid repetition); `openStartSessionModal` added; `openSessionModal` signature updated to accept `activeSession`; save handler clears localStorage and deletes consumed planned session
+- `css/components/home.css` — `.home-session-meta`, `.home-session-done`, `.home-idle-section`, `.home-idle-text`, `.btn-start-session`, `.home-prompt-card`, `.home-prompt-title`, `.home-prompt-meta`, `.home-prompt-actions` added
+
+**SW cache** bumped to `pm-journal-v6`.

@@ -91,6 +91,14 @@
 - "+ Schedule" button on every day panel → modal to add an Important Date or Planned Session with date pre-filled, project selector, dynamic fields per type
 - All calendar mutations refresh the calendar in place without resetting the month
 
+**Post-M11 — Session-aware home workflow** ✓ *(2026-06-21)*
+- Home now has four distinct states: no active project / idle / planned session prompt / session active
+- Session state persisted in `localStorage` (`pm-active-session`) — survives reloads, auto-cleared when stale
+- Start Session modal: pick Small/Mid/Big → generates task list from active milestone → session begins
+- Planned Session for today surfaces as a prompt card with "Start This Session" / "Start Different"
+- Session view shows only the fixed session task list; Finish Session clears state and deletes consumed planned session from calendar
+- Home is now a true command center: quiet when idle, focused when working
+
 > Backlogged: per-task and per-milestone due dates — revisit after calendar usage patterns are clear.
 
 ---

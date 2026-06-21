@@ -41,12 +41,42 @@ export async function renderHome(_params) {
   const activeProject = activeIdx >= 0 ? projects[activeIdx] : null;
 
   let activeMilestone = null;
-  let todaysTasks = [];
   if (activeProject) {
     activeMilestone = getActiveMilestone(milestones[activeIdx]);
-    if (activeMilestone) {
-      todaysTasks = await getTasksForMilestone(activeMilestone.id);
-    }
+  }
+
+  // Session state
+  let activeSession = JSON.parse(localStorage.getItem('pm-active-session') ?? 'null');
+  const sessionValid = activeSession && projects.find(
+    p => p.id === activeSession.projectId && p.status === 'active'
+  );
+  if (activeSession && !sessionValid) {
+    localStorage.removeItem('pm-active-session');
+    activeSession = null;
+  }
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todaysPlannedSession = activeProject
+    ? allPlanned.find(s => s.projectId === activeProject.id && s.date === todayStr)
+    : null;
+
+  let sessionTasks = [];
+  if (activeSession) {
+    const fetched = await Promise.all(activeSession.taskIds.map(id => getTask(id)));
+    sessionTasks = fetched.filter(Boolean);
+  }
+
+  const alertsHtml = buildAlertsHtml(allDates, projectNameMap);
+
+  let mainHtml;
+  if (!activeProject) {
+    mainHtml = renderMainEmpty();
+  } else if (activeSession) {
+    mainHtml = renderMainSession(activeProject, activeMilestone, sessionTasks, activeSession, alertsHtml);
+  } else if (todaysPlannedSession) {
+    mainHtml = renderMainPrompt(activeProject, activeMilestone, todaysPlannedSession, alertsHtml);
+  } else {
+    mainHtml = renderMainIdle(activeProject, activeMilestone, alertsHtml);
   }
 
   app.innerHTML = `
@@ -64,9 +94,7 @@ export async function renderHome(_params) {
       </aside>
       <main class="home-main">
         <div class="home-main-inner">
-          ${activeProject
-            ? renderMainActive(activeProject, activeMilestone, todaysTasks, buildAlertsHtml(allDates, projectNameMap))
-            : renderMainEmpty()}
+          ${mainHtml}
         </div>
       </main>
       <aside class="home-calendar-sidebar">
@@ -114,8 +142,31 @@ export async function renderHome(_params) {
   });
 
   document.getElementById('finish-session-btn')?.addEventListener('click', async () => {
+    if (!activeProject) return;
+    await openSessionModal(activeProject, activeMilestone, activeSession);
+  });
+
+  document.getElementById('start-session-btn')?.addEventListener('click', async () => {
     if (!activeProject || !activeMilestone) return;
-    await openSessionModal(activeProject, activeMilestone);
+    await openStartSessionModal(activeProject, activeMilestone, null);
+  });
+
+  document.getElementById('start-planned-btn')?.addEventListener('click', () => {
+    if (!activeProject || !todaysPlannedSession) return;
+    localStorage.setItem('pm-active-session', JSON.stringify({
+      projectId: activeProject.id,
+      milestoneId: activeMilestone?.id ?? null,
+      type: todaysPlannedSession.type,
+      taskIds: todaysPlannedSession.taskIds,
+      startedAt: Date.now(),
+      plannedSessionId: todaysPlannedSession.id,
+    }));
+    renderHome({});
+  });
+
+  document.getElementById('start-adhoc-btn')?.addEventListener('click', async () => {
+    if (!activeProject || !activeMilestone) return;
+    await openStartSessionModal(activeProject, activeMilestone, null);
   });
 
   // Mobile sidebar overlays (projects left, calendar right — opening one closes the other)
@@ -180,13 +231,17 @@ function renderSidebarItem(project, milestones) {
   `;
 }
 
-function renderMainActive(activeProject, activeMilestone, todaysTasks, alertsHtml) {
+function mobileTopBar() {
   return `
     <div class="mobile-top-bar">
       <button class="mobile-sidebar-btn" id="open-sidebar-btn">☰ Projects</button>
       <button class="mobile-sidebar-btn" id="open-calendar-btn">Calendar ☰</button>
     </div>
+  `;
+}
 
+function projectHeader(activeProject, activeMilestone) {
+  return `
     <div class="home-greeting">
       <h1 class="home-greeting-title">${escapeHtml(activeProject.name)}</h1>
       <p class="home-active-milestone">
@@ -195,28 +250,66 @@ function renderMainActive(activeProject, activeMilestone, todaysTasks, alertsHtm
           : 'All milestones complete.'}
       </p>
     </div>
+  `;
+}
 
+function renderMainSession(activeProject, activeMilestone, sessionTasks, activeSession, alertsHtml) {
+  const allDone = sessionTasks.length > 0 && sessionTasks.every(t => t.isComplete);
+  const typeLabel = activeSession.type.charAt(0).toUpperCase() + activeSession.type.slice(1);
+  return `
+    ${mobileTopBar()}
+    ${projectHeader(activeProject, activeMilestone)}
     ${alertsHtml}
-
     <div class="home-section">
-      <h2 class="home-section-title">Today's Tasks</h2>
-      ${todaysTasks.length > 0
-        ? `<ul class="home-task-list">${todaysTasks.map(renderTodaysTaskItem).join('')}</ul>`
-        : `<p class="home-empty-text">${activeMilestone ? 'No remaining tasks in this milestone.' : 'This project is complete.'}</p>`}
+      <div class="home-session-meta">${typeLabel} session in progress</div>
+      ${sessionTasks.length > 0
+        ? `<ul class="home-task-list">${sessionTasks.map(renderTodaysTaskItem).join('')}</ul>`
+        : `<p class="home-empty-text">No tasks in this session.</p>`}
+      ${allDone ? `<p class="home-session-done">All tasks done — ready to finish.</p>` : ''}
     </div>
-
     <div class="home-footer">
       <button class="btn-finish-session" id="finish-session-btn">Finish Session</button>
     </div>
   `;
 }
 
+function renderMainPrompt(activeProject, activeMilestone, plannedSession, alertsHtml) {
+  const typeLabel = plannedSession.type.charAt(0).toUpperCase() + plannedSession.type.slice(1);
+  const taskCount = plannedSession.taskIds?.length ?? 0;
+  return `
+    ${mobileTopBar()}
+    ${projectHeader(activeProject, activeMilestone)}
+    ${alertsHtml}
+    <div class="home-section">
+      <div class="home-prompt-card">
+        <p class="home-prompt-title">${typeLabel} session planned for today</p>
+        ${taskCount > 0 ? `<p class="home-prompt-meta">${taskCount} task${taskCount !== 1 ? 's' : ''}</p>` : ''}
+        <div class="home-prompt-actions">
+          <button class="btn btn-primary" id="start-planned-btn">Start This Session</button>
+          <button class="btn btn-ghost" id="start-adhoc-btn">Start Different</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderMainIdle(activeProject, activeMilestone, alertsHtml) {
+  return `
+    ${mobileTopBar()}
+    ${projectHeader(activeProject, activeMilestone)}
+    ${alertsHtml}
+    <div class="home-section">
+      <div class="home-idle-section">
+        <p class="home-idle-text">No active session.</p>
+        <button class="btn-start-session" id="start-session-btn">Start Session</button>
+      </div>
+    </div>
+  `;
+}
+
 function renderMainEmpty() {
   return `
-    <div class="mobile-top-bar">
-      <button class="mobile-sidebar-btn" id="open-sidebar-btn">☰ Projects</button>
-      <button class="mobile-sidebar-btn" id="open-calendar-btn">Calendar ☰</button>
-    </div>
+    ${mobileTopBar()}
     <div class="home-no-active">
       <p class="home-no-active-title">No active project.</p>
       <p class="home-empty-text">Select a project from the sidebar and use <strong>Set Active</strong> to start a session.</p>
@@ -270,7 +363,88 @@ function openNewProjectModal() {
   );
 }
 
-async function openSessionModal(project, activeMilestone) {
+async function openStartSessionModal(activeProject, activeMilestone, _unused) {
+  const typeSlices = { small: 2, mid: 5, big: Infinity };
+  let selectedType = null;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'session-modal-overlay';
+  overlay.innerHTML = `
+    <div class="session-modal" style="max-width:400px" role="dialog" aria-modal="true">
+      <h2 class="session-modal-title">Start Session</h2>
+      <div class="session-modal-body">
+        <div class="form-field">
+          <label class="form-label">Session Type</label>
+          <div class="session-type-toggle">
+            <button class="session-type-btn" data-type="small" type="button">Small</button>
+            <button class="session-type-btn" data-type="mid" type="button">Mid</button>
+            <button class="session-type-btn" data-type="big" type="button">Big</button>
+          </div>
+        </div>
+        <div id="start-task-preview" class="plan-task-preview"></div>
+      </div>
+      <div class="session-modal-actions">
+        <button class="btn btn-ghost" id="start-modal-cancel">Cancel</button>
+        <button class="btn btn-primary" id="start-modal-confirm">Start</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  const close = () => overlay.remove();
+  overlay.querySelector('#start-modal-cancel').addEventListener('click', close);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  document.addEventListener('keydown', function onEsc(e) {
+    if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onEsc); }
+  });
+
+  const allMilestoneTasks = activeMilestone
+    ? (await getTasksForMilestone(activeMilestone.id)).filter(t => !t.isComplete)
+    : [];
+  const preview = overlay.querySelector('#start-task-preview');
+
+  overlay.querySelectorAll('.session-type-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      overlay.querySelectorAll('.session-type-btn').forEach(b => b.classList.remove('is-active'));
+      btn.classList.add('is-active');
+      selectedType = btn.dataset.type;
+      const limit = typeSlices[selectedType] ?? Infinity;
+      const suggested = allMilestoneTasks.slice(0, limit);
+      if (suggested.length === 0) {
+        preview.innerHTML = '<p class="plan-task-empty">No remaining tasks in active milestone.</p>';
+      } else {
+        preview.innerHTML = `
+          <ul class="plan-task-list">
+            ${suggested.map(t => `
+              <li class="plan-task-item">
+                <span class="plan-task-label">${escapeHtml(t.name)}</span>
+              </li>
+            `).join('')}
+          </ul>
+        `;
+      }
+    });
+  });
+
+  overlay.querySelector('#start-modal-confirm').addEventListener('click', async () => {
+    if (!selectedType) return;
+    const limit = typeSlices[selectedType] ?? Infinity;
+    const taskIds = allMilestoneTasks.slice(0, limit).map(t => t.id);
+    localStorage.setItem('pm-active-session', JSON.stringify({
+      projectId: activeProject.id,
+      milestoneId: activeMilestone?.id ?? null,
+      type: selectedType,
+      taskIds,
+      startedAt: Date.now(),
+      plannedSessionId: null,
+    }));
+    close();
+    await renderHome({});
+  });
+}
+
+async function openSessionModal(project, activeMilestone, activeSession) {
   const [allTasks, milestoneTasks] = await Promise.all([
     getTasksForProject(project.id),
     activeMilestone ? getTasksForMilestone(activeMilestone.id) : Promise.resolve([]),
@@ -409,6 +583,12 @@ async function openSessionModal(project, activeMilestone) {
       nextSessionPlan,
     });
     await updateProject(project.id, { lastSessionAt: Date.now() });
+
+    // Clear active session and delete consumed planned session if applicable
+    localStorage.removeItem('pm-active-session');
+    if (activeSession?.plannedSessionId) {
+      await deletePlannedSession(activeSession.plannedSessionId);
+    }
 
     // Optional: save planned session
     const planDate = overlay.querySelector('#plan-date').value;
