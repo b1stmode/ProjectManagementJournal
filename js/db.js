@@ -379,6 +379,7 @@ export function createImportantDate(data) {
     const tx = getDB().transaction('importantDates', 'readwrite');
     const store = tx.objectStore('importantDates');
     const record = {
+      id: Math.floor(Math.random() * Number.MAX_SAFE_INTEGER),
       projectId: data.projectId,
       name: data.name,
       date: data.date,
@@ -441,6 +442,7 @@ export function createPlannedSession(data) {
     const tx = getDB().transaction('plannedSessions', 'readwrite');
     const store = tx.objectStore('plannedSessions');
     const record = {
+      id: Math.floor(Math.random() * Number.MAX_SAFE_INTEGER),
       projectId: data.projectId,
       date: data.date,
       type: data.type,
@@ -504,6 +506,7 @@ export function createBacklogItem(data) {
     const tx = getDB().transaction('backlog', 'readwrite');
     const store = tx.objectStore('backlog');
     const record = {
+      id: Math.floor(Math.random() * Number.MAX_SAFE_INTEGER),
       projectId: data.projectId,
       text: data.text,
       order: data.order ?? 0,

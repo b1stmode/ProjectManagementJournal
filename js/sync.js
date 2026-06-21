@@ -258,6 +258,7 @@ export async function firstTimeSync() {
 
     if (supabaseEmpty && !localEmpty) {
       await syncUp();    // first time ever — push local data to cloud
+      await syncDown();  // then pull back to merge any cloud records added between installs
     } else if (!supabaseEmpty) {
       await syncDown();  // pull latest from Supabase (new device or ongoing multi-device sync)
     }
