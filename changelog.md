@@ -260,3 +260,79 @@
 - Project detail: "Delete" opens styled confirm dialog with project name; confirming deletes the project and all its data, then returns to home
 
 **V2 complete** — M7 (Supabase + sync) + M8 (offline queue + multi-device) both done and deployed.
+
+---
+
+## 2026-06-21 — Session 4
+
+### M9 — Calendar & Dates ✓
+
+**Files created:**
+- `css/components/calendar.css` — alert strip, calendar grid, day cells, today highlight (filled accent circle), dot indicator, day panel, panel item variants (dates vs sessions)
+
+**Files modified:**
+- `js/db.js` — DB version bumped to 2; `importantDates` IDB store added (`!contains()` guard); 4 new exports: `createImportantDate`, `getImportantDatesForProject`, `updateImportantDate`, `deleteImportantDate`; `deleteProject` cascade updated
+- `js/sync.js` — `syncDown` and `syncUp` extended to handle `important_dates` table; `toCamel`/`toSnake` maps unchanged (field names match)
+- `js/views/project.js` — Important Dates section added between milestones and sessions; `renderImportantDates`, `openDateModal`, `handleDeleteDate` functions; new IDB imports
+- `js/views/home.js` — calendar sidebar rendered in right column; deadline alert strip (Important Dates within 7 days); `renderCalendar` function; calendar sidebar open/close on mobile
+- `css/components/home.css` — grid updated to 3-column (`260px 1fr 260px`) on desktop; calendar sidebar as fixed right column; mobile: calendar is fixed slide-in from right (`.home-calendar-sidebar.is-open`)
+- `index.html` — linked `calendar.css`; calendar toggle button in `.mobile-top-bar`
+- `sw.js` — `calendar.css` added to PRECACHE_URLS
+
+**Features working:**
+- Calendar always visible in right sidebar on desktop; slides in from right on mobile (separate from projects sidebar; opening one auto-closes the other)
+- Today shown as filled accent circle
+- Dots appear on days that have Important Dates
+- Clicking a day with events expands a panel below the calendar listing name, project, and optional note
+- Important Dates CRUD on project detail page (add/edit/delete with confirm)
+- Home screen shows a deadline alert strip for any Important Date within the next 7 days
+
+**Architecture note:** IDB upgraded with `!contains()` guard (not version-gated) to safely add the new store for existing users without wiping data. Users who already had the app needed to clear IDB and refresh once to pick up the new store.
+
+---
+
+### M10 — Session Intelligence ✓
+
+**Files modified:**
+- `js/db.js` — DB version bumped to 3; `plannedSessions` and `backlog` IDB stores added; 8 new exports (`createPlannedSession`, `getPlannedSessionsForProject`, `updatePlannedSession`, `deletePlannedSession`, `createBacklogItem`, `getBacklogForProject`, `updateBacklogItem`, `deleteBacklogItem`); `deleteProject` cascade updated for both new stores
+- `js/sync.js` — `syncDown` and `syncUp` extended to 7 stores total; `taskIds ↔ task_ids` mapping added to `toCamel`/`toSnake`
+- `js/views/home.js` — Plan Next Session block added to `openSessionModal`; session type toggle (Small/Mid/Big); task preview checkboxes auto-generated from active milestone tasks (sliced by type); planned session saved via `createPlannedSession` on session save; calendar updated to show both Important Dates and Planned Sessions; unified `calEvents` array with `eventType: 'date' | 'session'`
+- `js/views/project.js` — Backlog section added (between Important Dates and Sessions); `renderBacklog`, `openBacklogModal`, `handleDeleteBacklogItem`, `reorderBacklogItem` functions; new IDB imports
+- `css/components/sessions.css` — Plan Next Session block styles; session type toggle buttons; task checklist preview; `.is-active` state for selected type
+- `css/components/project-detail.css` — Backlog section styles; reorder controls; backlog item layout
+- `css/components/calendar.css` — session panel item variant (green left border + green name); Planned Sessions visually distinct from Important Dates in day panel
+- `sw.js` — cache bumped to `pm-journal-v3`
+
+**Features working:**
+- Finish Session modal has an optional "Plan Next Session" section at the bottom
+- User picks a date + session type → app generates a suggested task list from the active milestone (small: 2 tasks, mid: 5, big: all) → user can uncheck individual tasks
+- On session save, if a planned session was filled in, it's saved as a `plannedSessions` IDB record and synced to Supabase
+- Planned sessions appear on the calendar as green-tinted entries, distinct from Important Dates
+- Backlog per project: plain-text items, add/delete/reorder with ↑↓ buttons
+
+**Supabase setup (manual):**
+- 2 new tables: `planned_sessions` (id, project_id, date, type, task_ids jsonb, note, created_at) and `backlog` (id, project_id, name, order, created_at). Open RLS policies.
+
+---
+
+### Post-M10 — Calendar interactivity
+
+**Files modified:**
+- `js/views/home.js` — `renderCalendar` updated: new signature adds `allProjects` param; all non-empty days are now clickable (not just days with events); panel always renders with entries + "+ Schedule" button; entry click → `openEditDateModal` or `openEditSessionModal`; "+ Schedule" click → `openScheduleModal`; `refreshCalendar` helper re-fetches events and re-renders only the calendar (no full page re-render, month preserved); three new modal functions added (`openEditDateModal`, `openEditSessionModal`, `openScheduleModal`)
+- `css/components/calendar.css` — all non-empty days cursor pointer + hover state; `.cal-panel-item` cursor pointer + hover; `.cal-panel-add-btn` dashed border button at bottom of panel
+- `css/components/sessions.css` — `.cal-modal-actions` (space-between layout for Delete on left + Cancel/Save on right); `.cal-modal-project` (read-only project label in edit modals); `.cal-modal-right` flex group
+
+**Features working:**
+- Clicking any calendar day (including empty ones) opens a panel with a "+ Schedule" button
+- Clicking an entry in the panel opens an edit modal pre-filled with all fields; Delete button in bottom-left; Save updates in place; calendar refreshes on the same month without resetting
+- "+ Schedule" modal: date pre-filled from clicked day; project selector; toggle between "Important Date" and "Planned Session"; dynamic fields per type; Planned Session shows task checkboxes based on project's active milestone and chosen size
+
+---
+
+### Bug fix — Tombstone deletion wipes unsynced local records
+
+**Problem:** If a `syncRecord` upsert to Supabase failed (network issue, missing table, type mismatch), the record went into the offline queue but never reached Supabase. On the next app load, `flushQueue` would fail again, and then `syncDown` Phase 3 would tombstone-delete the record from IDB — reasoning "it's local but not in Supabase → must have been deleted on another device." The record would silently disappear after every reload.
+
+**Fix (`js/sync.js`):** Before Phase 3 tombstone deletion, build a per-table set of IDs currently in the offline queue. Skip deletion for any ID that appears in the queue — those are unsynced local writes, not remote deletions.
+
+**SW cache** bumped to `pm-journal-v4` to serve the updated `sync.js`.

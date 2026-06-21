@@ -181,6 +181,6 @@ No teal. No gradients. No neon. Typography and text carry the visual weight.
 
 ## Status
 
-**M1–M8 complete** (as of 2026-06-20). V1 and V2 are done. App is live on Cloudflare Pages with Supabase cloud sync, offline queue, and multi-device support.
+**M1–M10 complete** (as of 2026-06-21). V1, V2, and V3 are done. App is live on Cloudflare Pages with Supabase cloud sync, offline queue, multi-device support, calendar, Important Dates, Planned Sessions, and backlog.
 
-**Next:** V3 — M9 Calendar & Dates (scoped to Important Dates only; per-task due dates backlogged).
+**Next:** V4 — M11 Google Calendar Sync (push-only: Important Dates + Planned Sessions → Google Calendar).

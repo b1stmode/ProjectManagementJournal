@@ -69,20 +69,29 @@
 ## V3 — Enhanced Features
 *Goal: Smarter planning, better visibility*
 
-**M9 — Calendar & Dates**
-- Read-only calendar on home (today highlighted, Important Dates marked)
-- Important Dates as a dedicated object within projects (name + date + optional note)
-- Click date → show Important Dates for that day
-- Home alert when an Important Date is within X days
-- Scope: Important Dates only — per-task/milestone due dates are backlogged
+**M9 — Calendar & Dates** ✓ *(2026-06-21)*
+- Read-only calendar in right sidebar (desktop: fixed column; mobile: slide-in from right)
+- Important Dates as a dedicated object within projects (name + date + optional note) — CRUD on project detail
+- Calendar shows dots on days with events; click any day to expand a day panel
+- Today highlighted with a filled accent circle
+- Home deadline alert strip — Important Dates within 7 days surface on the home screen
+- IDB store `importantDates` (DB v2), Supabase `important_dates` table
+- Scope: Important Dates only — per-task/milestone due dates backlogged
 
-**M10 — Session Intelligence**
+**M10 — Session Intelligence** ✓ *(2026-06-21)*
 - Session types: small / mid / big
-- Next Session Planning: after Finish Session, optionally pick a date + type → app generates suggested task list from active milestone (small: 1–2 tasks, mid: 3–5, big: full milestone or more) → saved as a Planned Session → visible on calendar
-- Mid-session milestone completion handling (pull tasks from next milestone without ending session)
-- Backlog management per project
+- Next Session Planning block in Finish Session modal — pick date + type → generates suggested task list from active milestone (small: 2 tasks, mid: 5, big: all) → user can uncheck tasks → saved as a Planned Session → appears on calendar as green-tinted entries
+- Backlog per project — add/delete/reorder plain-text items; section on project detail between Dates and Sessions
+- Mid-session milestone advance — already worked from M3/M4 completion chain; declared done
+- IDB stores `plannedSessions` + `backlog` (DB v3), Supabase `planned_sessions` + `backlog` tables
 
-> Backlogged: per-task and per-milestone due dates (Option B) — revisit after M9 calendar usage patterns are clear.
+**Post-M10 — Calendar interactivity** ✓ *(2026-06-21)*
+- Clicking any calendar day (not just event days) opens a day panel
+- Panel entries (Important Dates + Planned Sessions) are clickable → edit/delete modal
+- "+ Schedule" button on every day panel → modal to add an Important Date or Planned Session with date pre-filled, project selector, dynamic fields per type
+- All calendar mutations refresh the calendar in place without resetting the month
+
+> Backlogged: per-task and per-milestone due dates — revisit after calendar usage patterns are clear.
 
 ---
 
@@ -91,8 +100,8 @@
 
 **M11 — Google Calendar Sync**
 - Connect in-app calendar to Google Calendar account
-- Tasks with due dates appear natively on phone calendar
-- View upcoming project tasks without opening the app
+- Push Important Dates and Planned Sessions to Google Calendar so they appear natively on the phone
+- Push-only (app → GCal) — no bidirectional sync
 
 ---
 
@@ -103,3 +112,10 @@
 - Replace Cloudflare Zero Trust gate with in-app Supabase Auth (signup, login, persistent session)
 - Row Level Security on all Supabase tables — each user only sees their own data
 - User account management (email change, password reset)
+
+---
+
+## Backlogged Features
+
+- **Per-task / per-milestone due dates** — deferred from M9; revisit when calendar usage patterns are clearer.
+- **Versions layer** — add one hierarchy level above milestones: Project → Versions → Milestones → Tasks. Developers naturally think in versions (V1, V2, V3); the current system tracks this only in the user's head. Would also enable version-scoped session planning ("big session = finish the current version"). Significant data model change — new IDB store, new Supabase table, migration of existing milestones, UI updates across project detail and home. Scope as its own milestone before M12.
