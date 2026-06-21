@@ -216,14 +216,24 @@ async function syncDown() {
     for (const r of (sbPlanned    || [])) tx.objectStore('plannedSessions').put(toCamel(r));
     for (const r of (sbBacklog    || [])) tx.objectStore('backlog').put(toCamel(r));
 
+    // Build a per-table set of IDs sitting in the offline queue (failed to sync yet).
+    // These are NOT deleted on another device — they just haven't reached Supabase yet.
+    const pendingByTable = {};
+    for (const op of getQueue()) {
+      if (op.type !== 'upsert') continue;
+      if (!pendingByTable[op.table]) pendingByTable[op.table] = new Set();
+      pendingByTable[op.table].add(op.record.id);
+    }
+    const pending = t => pendingByTable[t] ?? new Set();
+
     // Delete local records no longer present in Supabase (deleted on another device)
-    for (const id of localProjIds)    if (!sbProjIds.has(id))    tx.objectStore('projects').delete(id);
-    for (const id of localMileIds)    if (!sbMileIds.has(id))    tx.objectStore('milestones').delete(id);
-    for (const id of localTaskIds)    if (!sbTaskIds.has(id))    tx.objectStore('tasks').delete(id);
-    for (const id of localSessIds)    if (!sbSessIds.has(id))    tx.objectStore('sessions').delete(id);
-    for (const id of localDateIds)    if (!sbDateIds.has(id))    tx.objectStore('importantDates').delete(id);
-    for (const id of localPlanIds)    if (!sbPlanIds.has(id))    tx.objectStore('plannedSessions').delete(id);
-    for (const id of localBacklogIds) if (!sbBacklogIds.has(id)) tx.objectStore('backlog').delete(id);
+    for (const id of localProjIds)    if (!sbProjIds.has(id)    && !pending('projects').has(id))        tx.objectStore('projects').delete(id);
+    for (const id of localMileIds)    if (!sbMileIds.has(id)    && !pending('milestones').has(id))      tx.objectStore('milestones').delete(id);
+    for (const id of localTaskIds)    if (!sbTaskIds.has(id)    && !pending('tasks').has(id))           tx.objectStore('tasks').delete(id);
+    for (const id of localSessIds)    if (!sbSessIds.has(id)    && !pending('sessions').has(id))        tx.objectStore('sessions').delete(id);
+    for (const id of localDateIds)    if (!sbDateIds.has(id)    && !pending('important_dates').has(id)) tx.objectStore('importantDates').delete(id);
+    for (const id of localPlanIds)    if (!sbPlanIds.has(id)    && !pending('planned_sessions').has(id)) tx.objectStore('plannedSessions').delete(id);
+    for (const id of localBacklogIds) if (!sbBacklogIds.has(id) && !pending('backlog').has(id))         tx.objectStore('backlog').delete(id);
 
     tx.oncomplete = resolve;
     tx.onerror = () => reject(tx.error);
