@@ -3,21 +3,28 @@ import {
   getMilestonesForProject,
   getTasksForMilestone, getTasksForProject, getTask, updateTask,
   createSession,
-  getImportantDatesForProject,
+  createImportantDate, getImportantDatesForProject, updateImportantDate, deleteImportantDate,
+  createPlannedSession, getPlannedSessionsForProject, updatePlannedSession, deletePlannedSession,
 } from '../db.js';
 import { navigate } from '../router.js';
-import { openModal, closeModal } from '../utils/modal.js';
+import { openModal, closeModal, openConfirmModal } from '../utils/modal.js';
 import { getActiveMilestone, checkMilestoneCompletion } from '../utils/milestones.js';
 
 export async function renderHome(_params) {
   const app = document.getElementById('app');
 
   const allProjects = await getAllProjects();
-  const [milestoneGroups, dateGroups] = await Promise.all([
+  const [milestoneGroups, dateGroups, plannedGroups] = await Promise.all([
     Promise.all(allProjects.map(p => getMilestonesForProject(p.id))),
     Promise.all(allProjects.map(p => getImportantDatesForProject(p.id))),
+    Promise.all(allProjects.map(p => getPlannedSessionsForProject(p.id))),
   ]);
   const allDates = dateGroups.flat();
+  const allPlanned = plannedGroups.flat();
+  const calEvents = [
+    ...allDates.map(d => ({ ...d, eventType: 'date' })),
+    ...allPlanned.map(s => ({ ...s, eventType: 'session' })),
+  ];
   const projectNameMap = Object.fromEntries(allProjects.map(p => [p.id, p.name]));
 
   const paired = allProjects.map((p, i) => ({ project: p, milestones: milestoneGroups[i] }));
@@ -83,7 +90,7 @@ export async function renderHome(_params) {
   const calContainer = document.getElementById('calendar-container');
   if (calContainer) {
     const now = new Date();
-    renderCalendar(calContainer, allDates, projectNameMap, now.getMonth(), now.getFullYear());
+    renderCalendar(calContainer, calEvents, projectNameMap, projects, now.getMonth(), now.getFullYear());
   }
 
   document.getElementById('finish-session-btn')?.addEventListener('click', async () => {
@@ -244,7 +251,11 @@ function openNewProjectModal() {
 }
 
 async function openSessionModal(project, activeMilestone) {
-  const allTasks = await getTasksForProject(project.id);
+  const [allTasks, milestoneTasks] = await Promise.all([
+    getTasksForProject(project.id),
+    activeMilestone ? getTasksForMilestone(activeMilestone.id) : Promise.resolve([]),
+  ]);
+  const remainingTasks = milestoneTasks.filter(t => !t.isComplete);
   const since = project.lastSessionAt ?? 0;
   const completedTasks = allTasks.filter(t => t.isComplete && (t.completedAt ?? 0) > since);
 
@@ -298,6 +309,20 @@ async function openSessionModal(project, activeMilestone) {
                     placeholder="What to pick up next..."></textarea>
         </div>
 
+        <div class="session-block session-plan-block">
+          <div class="session-block-label">Plan Next Session <span class="session-plan-optional">(optional)</span></div>
+          <div class="session-plan-row">
+            <input class="form-input" id="plan-date" type="date" />
+            <div class="session-type-toggle">
+              <button class="session-type-btn" data-type="small" type="button">Small</button>
+              <button class="session-type-btn" data-type="mid" type="button">Mid</button>
+              <button class="session-type-btn" data-type="big" type="button">Big</button>
+            </div>
+          </div>
+          <div id="plan-task-preview" class="plan-task-preview"></div>
+          <textarea class="form-textarea" id="plan-note" placeholder="Optional note for this session"></textarea>
+        </div>
+
       </div>
       <div class="session-modal-actions">
         <button class="btn btn-ghost" id="session-cancel">Cancel</button>
@@ -317,6 +342,40 @@ async function openSessionModal(project, activeMilestone) {
     if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onEsc); }
   });
 
+  // Next session planning — type toggle + task preview
+  const typeSlices = { small: 2, mid: 5, big: Infinity };
+  let selectedType = null;
+  const taskPreview = overlay.querySelector('#plan-task-preview');
+
+  overlay.querySelectorAll('.session-type-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      overlay.querySelectorAll('.session-type-btn').forEach(b => b.classList.remove('is-active'));
+      btn.classList.add('is-active');
+      selectedType = btn.dataset.type;
+
+      const limit = typeSlices[selectedType] ?? Infinity;
+      const suggested = remainingTasks.slice(0, limit);
+
+      if (suggested.length === 0) {
+        taskPreview.innerHTML = '<p class="plan-task-empty">No remaining tasks in active milestone.</p>';
+        return;
+      }
+
+      taskPreview.innerHTML = `
+        <ul class="plan-task-list">
+          ${suggested.map(t => `
+            <li class="plan-task-item">
+              <label class="plan-task-label">
+                <input class="plan-task-check" type="checkbox" value="${t.id}" checked />
+                <span>${escapeHtml(t.name)}</span>
+              </label>
+            </li>
+          `).join('')}
+        </ul>
+      `;
+    });
+  });
+
   overlay.querySelector('#session-save').addEventListener('click', async () => {
     const notes = overlay.querySelector('#session-notes').value.trim();
     const nextSessionPlan = overlay.querySelector('#session-next').value.trim();
@@ -330,6 +389,21 @@ async function openSessionModal(project, activeMilestone) {
       nextSessionPlan,
     });
     await updateProject(project.id, { lastSessionAt: Date.now() });
+
+    // Optional: save planned session
+    const planDate = overlay.querySelector('#plan-date').value;
+    if (planDate && selectedType) {
+      const checkedBoxes = [...overlay.querySelectorAll('.plan-task-check:checked')];
+      const taskIds = checkedBoxes.map(cb => Number(cb.value));
+      const planNote = overlay.querySelector('#plan-note').value.trim();
+      await createPlannedSession({
+        projectId: project.id,
+        date: planDate,
+        type: selectedType,
+        taskIds,
+        note: planNote,
+      });
+    }
 
     close();
     await renderHome({});
@@ -370,16 +444,16 @@ function buildAlertsHtml(allDates, projectNameMap) {
   `;
 }
 
-function renderCalendar(container, allDates, projectNameMap, month, year) {
+function renderCalendar(container, events, projectNameMap, allProjects, month, year) {
   const today = new Date();
   const todayYear = today.getFullYear();
   const todayMonth = today.getMonth();
   const todayDate = today.getDate();
 
   const dateMap = {};
-  for (const d of allDates) {
-    if (!dateMap[d.date]) dateMap[d.date] = [];
-    dateMap[d.date].push(d);
+  for (const e of events) {
+    if (!dateMap[e.date]) dateMap[e.date] = [];
+    dateMap[e.date].push(e);
   }
 
   const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -429,19 +503,20 @@ function renderCalendar(container, allDates, projectNameMap, month, year) {
   container.querySelector('#cal-prev').addEventListener('click', () => {
     let m = month - 1, y = year;
     if (m < 0) { m = 11; y--; }
-    renderCalendar(container, allDates, projectNameMap, m, y);
+    renderCalendar(container, events, projectNameMap, allProjects, m, y);
   });
 
   container.querySelector('#cal-next').addEventListener('click', () => {
     let m = month + 1, y = year;
     if (m > 11) { m = 0; y++; }
-    renderCalendar(container, allDates, projectNameMap, m, y);
+    renderCalendar(container, events, projectNameMap, allProjects, m, y);
   });
 
   let selectedDay = null;
   const panel = container.querySelector('.cal-day-panel');
 
-  container.querySelectorAll('.cal-day.has-dates').forEach(cell => {
+  // All real days are clickable
+  container.querySelectorAll('.cal-day:not(.cal-day-empty)').forEach(cell => {
     cell.addEventListener('click', () => {
       const day = Number(cell.dataset.day);
       const key = cell.dataset.key;
@@ -458,18 +533,402 @@ function renderCalendar(container, allDates, projectNameMap, month, year) {
       cell.classList.add('is-selected');
 
       const entries = dateMap[key] || [];
+
       panel.innerHTML = `
-        <ul class="cal-panel-list">
-          ${entries.map(e => `
-            <li class="cal-panel-item">
-              <span class="cal-panel-name">${escapeHtml(e.name)}</span>
-              <span class="cal-panel-project">${escapeHtml(projectNameMap[e.projectId] ?? '')}</span>
-              ${e.note ? `<p class="cal-panel-note">${escapeHtml(e.note)}</p>` : ''}
-            </li>
-          `).join('')}
-        </ul>
+        ${entries.length > 0 ? `
+          <ul class="cal-panel-list">
+            ${entries.map((e, idx) => {
+              if (e.eventType === 'session') {
+                const label = e.type.charAt(0).toUpperCase() + e.type.slice(1) + ' session';
+                return `
+                  <li class="cal-panel-item cal-panel-item--session" data-entry-idx="${idx}">
+                    <span class="cal-panel-name">${escapeHtml(label)}</span>
+                    <span class="cal-panel-project">${escapeHtml(projectNameMap[e.projectId] ?? '')}</span>
+                    ${e.note ? `<p class="cal-panel-note">${escapeHtml(e.note)}</p>` : ''}
+                  </li>
+                `;
+              }
+              return `
+                <li class="cal-panel-item" data-entry-idx="${idx}">
+                  <span class="cal-panel-name">${escapeHtml(e.name)}</span>
+                  <span class="cal-panel-project">${escapeHtml(projectNameMap[e.projectId] ?? '')}</span>
+                  ${e.note ? `<p class="cal-panel-note">${escapeHtml(e.note)}</p>` : ''}
+                </li>
+              `;
+            }).join('')}
+          </ul>
+        ` : ''}
+        <button class="cal-panel-add-btn" data-key="${key}">+ Schedule</button>
       `;
+
+      // Wire panel entry clicks → edit modals
+      panel.querySelectorAll('.cal-panel-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const e = entries[Number(item.dataset.entryIdx)];
+          if (e.eventType === 'date') {
+            openEditDateModal(e, container, projectNameMap, allProjects, month, year);
+          } else {
+            openEditSessionModal(e, container, projectNameMap, allProjects, month, year);
+          }
+        });
+      });
+
+      // Wire "+ Schedule" button
+      panel.querySelector('.cal-panel-add-btn').addEventListener('click', () => {
+        openScheduleModal(key, container, projectNameMap, allProjects, month, year);
+      });
     });
+  });
+}
+
+async function refreshCalendar(container, projectNameMap, allProjects, month, year) {
+  const [dateGroups, plannedGroups] = await Promise.all([
+    Promise.all(allProjects.map(p => getImportantDatesForProject(p.id))),
+    Promise.all(allProjects.map(p => getPlannedSessionsForProject(p.id))),
+  ]);
+  const calEvents = [
+    ...dateGroups.flat().map(d => ({ ...d, eventType: 'date' })),
+    ...plannedGroups.flat().map(s => ({ ...s, eventType: 'session' })),
+  ];
+  renderCalendar(container, calEvents, projectNameMap, allProjects, month, year);
+}
+
+async function openEditDateModal(dateEvent, container, projectNameMap, allProjects, month, year) {
+  const overlay = document.createElement('div');
+  overlay.className = 'session-modal-overlay';
+  overlay.innerHTML = `
+    <div class="session-modal" role="dialog" aria-modal="true">
+      <h2 class="session-modal-title">Edit Important Date</h2>
+      <p class="cal-modal-project">${escapeHtml(projectNameMap[dateEvent.projectId] ?? '')}</p>
+      <div class="session-modal-body">
+        <div class="form-field">
+          <label class="form-label" for="edit-date-name">Name</label>
+          <input class="form-input" id="edit-date-name" type="text" value="${escapeHtml(dateEvent.name)}" />
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="edit-date-value">Date</label>
+          <input class="form-input" id="edit-date-value" type="date" value="${dateEvent.date}" />
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="edit-date-note">Note</label>
+          <textarea class="form-textarea" id="edit-date-note">${escapeHtml(dateEvent.note ?? '')}</textarea>
+        </div>
+      </div>
+      <div class="session-modal-actions cal-modal-actions">
+        <button class="btn btn-danger" id="cal-modal-delete">Delete</button>
+        <div class="cal-modal-right">
+          <button class="btn btn-ghost" id="cal-modal-cancel">Cancel</button>
+          <button class="btn btn-primary" id="cal-modal-save">Save</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+  overlay.querySelector('#edit-date-name').focus();
+
+  const close = () => overlay.remove();
+  overlay.querySelector('#cal-modal-cancel').addEventListener('click', close);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  document.addEventListener('keydown', function onEsc(e) {
+    if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onEsc); }
+  });
+
+  overlay.querySelector('#cal-modal-save').addEventListener('click', async () => {
+    const name = overlay.querySelector('#edit-date-name').value.trim();
+    const date = overlay.querySelector('#edit-date-value').value;
+    if (!name || !date) return;
+    const note = overlay.querySelector('#edit-date-note').value.trim();
+    await updateImportantDate(dateEvent.id, { name, date, note });
+    close();
+    await refreshCalendar(container, projectNameMap, allProjects, month, year);
+  });
+
+  overlay.querySelector('#cal-modal-delete').addEventListener('click', () => {
+    close();
+    openConfirmModal(`Delete "${escapeHtml(dateEvent.name)}"?`, async () => {
+      await deleteImportantDate(dateEvent.id);
+      closeModal();
+      await refreshCalendar(container, projectNameMap, allProjects, month, year);
+    });
+  });
+}
+
+async function openEditSessionModal(sessionEvent, container, projectNameMap, allProjects, month, year) {
+  const milestones = await getMilestonesForProject(sessionEvent.projectId);
+  const activeMilestone = getActiveMilestone(milestones);
+  const milestoneTasks = activeMilestone
+    ? (await getTasksForMilestone(activeMilestone.id)).filter(t => !t.isComplete)
+    : [];
+
+  const storedIds = new Set(sessionEvent.taskIds ?? []);
+  const typeSlices = { small: 2, mid: 5, big: Infinity };
+  let selectedType = sessionEvent.type;
+
+  function buildTaskCheckboxes(type, currentlyChecked = storedIds) {
+    const limit = typeSlices[type] ?? Infinity;
+    const suggested = milestoneTasks.slice(0, limit);
+    if (suggested.length === 0) return '<p class="plan-task-empty">No remaining tasks in active milestone.</p>';
+    return `
+      <ul class="plan-task-list">
+        ${suggested.map(t => `
+          <li class="plan-task-item">
+            <label class="plan-task-label">
+              <input class="plan-task-check" type="checkbox" value="${t.id}" ${currentlyChecked.has(t.id) ? 'checked' : ''} />
+              <span>${escapeHtml(t.name)}</span>
+            </label>
+          </li>
+        `).join('')}
+      </ul>
+    `;
+  }
+
+  const overlay = document.createElement('div');
+  overlay.className = 'session-modal-overlay';
+  overlay.innerHTML = `
+    <div class="session-modal" role="dialog" aria-modal="true">
+      <h2 class="session-modal-title">Edit Planned Session</h2>
+      <p class="cal-modal-project">${escapeHtml(projectNameMap[sessionEvent.projectId] ?? '')}</p>
+      <div class="session-modal-body">
+        <div class="form-field">
+          <label class="form-label">Session Type</label>
+          <div class="session-type-toggle">
+            <button class="session-type-btn${selectedType === 'small' ? ' is-active' : ''}" data-type="small" type="button">Small</button>
+            <button class="session-type-btn${selectedType === 'mid' ? ' is-active' : ''}" data-type="mid" type="button">Mid</button>
+            <button class="session-type-btn${selectedType === 'big' ? ' is-active' : ''}" data-type="big" type="button">Big</button>
+          </div>
+        </div>
+        <div id="edit-session-tasks" class="plan-task-preview">
+          ${buildTaskCheckboxes(selectedType)}
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="edit-session-note">Note</label>
+          <textarea class="form-textarea" id="edit-session-note">${escapeHtml(sessionEvent.note ?? '')}</textarea>
+        </div>
+      </div>
+      <div class="session-modal-actions cal-modal-actions">
+        <button class="btn btn-danger" id="cal-modal-delete">Delete</button>
+        <div class="cal-modal-right">
+          <button class="btn btn-ghost" id="cal-modal-cancel">Cancel</button>
+          <button class="btn btn-primary" id="cal-modal-save">Save</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  const close = () => overlay.remove();
+  const taskPreview = overlay.querySelector('#edit-session-tasks');
+
+  overlay.querySelector('#cal-modal-cancel').addEventListener('click', close);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  document.addEventListener('keydown', function onEsc(e) {
+    if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onEsc); }
+  });
+
+  overlay.querySelectorAll('.session-type-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const currentlyChecked = new Set(
+        [...overlay.querySelectorAll('.plan-task-check:checked')].map(cb => Number(cb.value))
+      );
+      overlay.querySelectorAll('.session-type-btn').forEach(b => b.classList.remove('is-active'));
+      btn.classList.add('is-active');
+      selectedType = btn.dataset.type;
+      taskPreview.innerHTML = buildTaskCheckboxes(selectedType, currentlyChecked);
+    });
+  });
+
+  overlay.querySelector('#cal-modal-save').addEventListener('click', async () => {
+    const taskIds = [...overlay.querySelectorAll('.plan-task-check:checked')].map(cb => Number(cb.value));
+    const note = overlay.querySelector('#edit-session-note').value.trim();
+    await updatePlannedSession(sessionEvent.id, { type: selectedType, taskIds, note });
+    close();
+    await refreshCalendar(container, projectNameMap, allProjects, month, year);
+  });
+
+  overlay.querySelector('#cal-modal-delete').addEventListener('click', () => {
+    close();
+    openConfirmModal('Delete this planned session?', async () => {
+      await deletePlannedSession(sessionEvent.id);
+      closeModal();
+      await refreshCalendar(container, projectNameMap, allProjects, month, year);
+    });
+  });
+}
+
+async function openScheduleModal(dateKey, container, projectNameMap, allProjects, month, year) {
+  let schedType = 'date';
+  let schedSessionType = null;
+  const typeSlices = { small: 2, mid: 5, big: Infinity };
+
+  const overlay = document.createElement('div');
+  overlay.className = 'session-modal-overlay';
+  overlay.innerHTML = `
+    <div class="session-modal" role="dialog" aria-modal="true">
+      <h2 class="session-modal-title">Schedule</h2>
+      <div class="session-modal-body">
+        <div class="form-field">
+          <label class="form-label" for="sched-date">Date</label>
+          <input class="form-input" id="sched-date" type="date" value="${dateKey}" />
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="sched-project">Project</label>
+          <select class="form-input" id="sched-project">
+            <option value="">Select a project...</option>
+            ${allProjects.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Type</label>
+          <div class="session-type-toggle">
+            <button class="session-type-btn is-active" data-sched-type="date" type="button">Important Date</button>
+            <button class="session-type-btn" data-sched-type="session" type="button">Planned Session</button>
+          </div>
+        </div>
+        <div id="sched-dynamic-fields">
+          <div class="form-field">
+            <label class="form-label" for="sched-name">Name</label>
+            <input class="form-input" id="sched-name" type="text" placeholder="e.g. Demo Day, Release" />
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="sched-note">Note</label>
+            <textarea class="form-textarea" id="sched-note" placeholder="Optional note"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="session-modal-actions">
+        <button class="btn btn-ghost" id="sched-cancel">Cancel</button>
+        <button class="btn btn-primary" id="sched-save">Save</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+  overlay.querySelector('#sched-project').focus();
+
+  const close = () => overlay.remove();
+  const dynamicFields = overlay.querySelector('#sched-dynamic-fields');
+
+  overlay.querySelector('#sched-cancel').addEventListener('click', close);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  document.addEventListener('keydown', function onEsc(e) {
+    if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onEsc); }
+  });
+
+  function renderDateFields() {
+    return `
+      <div class="form-field">
+        <label class="form-label" for="sched-name">Name</label>
+        <input class="form-input" id="sched-name" type="text" placeholder="e.g. Demo Day, Release" />
+      </div>
+      <div class="form-field">
+        <label class="form-label" for="sched-note">Note</label>
+        <textarea class="form-textarea" id="sched-note" placeholder="Optional note"></textarea>
+      </div>
+    `;
+  }
+
+  function renderSessionFields() {
+    return `
+      <div class="form-field">
+        <label class="form-label">Session Size</label>
+        <div class="session-type-toggle" id="sched-size-toggle">
+          <button class="session-type-btn" data-size="small" type="button">Small</button>
+          <button class="session-type-btn" data-size="mid" type="button">Mid</button>
+          <button class="session-type-btn" data-size="big" type="button">Big</button>
+        </div>
+      </div>
+      <div id="sched-task-preview" class="plan-task-preview"></div>
+      <div class="form-field">
+        <label class="form-label" for="sched-session-note">Note</label>
+        <textarea class="form-textarea" id="sched-session-note" placeholder="Optional note"></textarea>
+      </div>
+    `;
+  }
+
+  async function updateTaskPreview() {
+    const projectId = Number(overlay.querySelector('#sched-project').value);
+    const preview = dynamicFields.querySelector('#sched-task-preview');
+    if (!preview || !projectId || !schedSessionType) return;
+
+    const milestones = await getMilestonesForProject(projectId);
+    const activeMilestone = getActiveMilestone(milestones);
+    if (!activeMilestone) {
+      preview.innerHTML = '<p class="plan-task-empty">No active milestone for this project.</p>';
+      return;
+    }
+    const tasks = (await getTasksForMilestone(activeMilestone.id)).filter(t => !t.isComplete);
+    const suggested = tasks.slice(0, typeSlices[schedSessionType] ?? Infinity);
+    if (suggested.length === 0) {
+      preview.innerHTML = '<p class="plan-task-empty">No remaining tasks in active milestone.</p>';
+      return;
+    }
+    preview.innerHTML = `
+      <ul class="plan-task-list">
+        ${suggested.map(t => `
+          <li class="plan-task-item">
+            <label class="plan-task-label">
+              <input class="plan-task-check" type="checkbox" value="${t.id}" checked />
+              <span>${escapeHtml(t.name)}</span>
+            </label>
+          </li>
+        `).join('')}
+      </ul>
+    `;
+  }
+
+  function wireSessionSizeButtons() {
+    dynamicFields.querySelectorAll('[data-size]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        dynamicFields.querySelectorAll('[data-size]').forEach(b => b.classList.remove('is-active'));
+        btn.classList.add('is-active');
+        schedSessionType = btn.dataset.size;
+        await updateTaskPreview();
+      });
+    });
+  }
+
+  // Outer type toggle (Important Date vs Planned Session)
+  overlay.querySelectorAll('[data-sched-type]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      overlay.querySelectorAll('[data-sched-type]').forEach(b => b.classList.remove('is-active'));
+      btn.classList.add('is-active');
+      schedType = btn.dataset.schedType;
+      schedSessionType = null;
+      if (schedType === 'date') {
+        dynamicFields.innerHTML = renderDateFields();
+      } else {
+        dynamicFields.innerHTML = renderSessionFields();
+        wireSessionSizeButtons();
+      }
+    });
+  });
+
+  // Project change → refresh task preview for session type
+  overlay.querySelector('#sched-project').addEventListener('change', async () => {
+    if (schedType === 'session' && schedSessionType) await updateTaskPreview();
+  });
+
+  overlay.querySelector('#sched-save').addEventListener('click', async () => {
+    const date = overlay.querySelector('#sched-date').value;
+    const projectId = Number(overlay.querySelector('#sched-project').value);
+    if (!date || !projectId) return;
+
+    if (schedType === 'date') {
+      const name = dynamicFields.querySelector('#sched-name')?.value.trim();
+      if (!name) return;
+      const note = dynamicFields.querySelector('#sched-note')?.value.trim() ?? '';
+      await createImportantDate({ projectId, name, date, note });
+    } else {
+      if (!schedSessionType) return;
+      const taskIds = [...dynamicFields.querySelectorAll('.plan-task-check:checked')].map(cb => Number(cb.value));
+      const note = dynamicFields.querySelector('#sched-session-note')?.value.trim() ?? '';
+      await createPlannedSession({ projectId, date, type: schedSessionType, taskIds, note });
+    }
+
+    close();
+    await refreshCalendar(container, projectNameMap, allProjects, month, year);
   });
 }
 

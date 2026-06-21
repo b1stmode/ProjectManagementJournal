@@ -1,7 +1,7 @@
 import { syncRecord, deleteRecord } from './sync.js';
 
 const DB_NAME = 'pmjournal';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 let db = null;
 
@@ -44,6 +44,17 @@ export function initDB() {
         const dates = database.createObjectStore('importantDates', { keyPath: 'id', autoIncrement: true });
         dates.createIndex('projectId', 'projectId', { unique: false });
         dates.createIndex('date', 'date', { unique: false });
+      }
+
+      if (!database.objectStoreNames.contains('plannedSessions')) {
+        const ps = database.createObjectStore('plannedSessions', { keyPath: 'id', autoIncrement: true });
+        ps.createIndex('projectId', 'projectId', { unique: false });
+        ps.createIndex('date', 'date', { unique: false });
+      }
+
+      if (!database.objectStoreNames.contains('backlog')) {
+        const bl = database.createObjectStore('backlog', { keyPath: 'id', autoIncrement: true });
+        bl.createIndex('projectId', 'projectId', { unique: false });
       }
     };
 
@@ -124,7 +135,7 @@ export function updateProject(id, changes) {
 
 export function deleteProject(id) {
   return new Promise((resolve, reject) => {
-    const tx = getDB().transaction(['projects', 'milestones', 'tasks', 'sessions', 'importantDates'], 'readwrite');
+    const tx = getDB().transaction(['projects', 'milestones', 'tasks', 'sessions', 'importantDates', 'plannedSessions', 'backlog'], 'readwrite');
     tx.oncomplete = () => {
       deleteRecord('projects', id); // Supabase FK cascade handles child records
       resolve();
@@ -151,6 +162,16 @@ export function deleteProject(id) {
     tx.objectStore('importantDates').index('projectId')
       .getAllKeys(IDBKeyRange.only(id)).onsuccess = (e) => {
         e.target.result.forEach(key => tx.objectStore('importantDates').delete(key));
+      };
+
+    tx.objectStore('plannedSessions').index('projectId')
+      .getAllKeys(IDBKeyRange.only(id)).onsuccess = (e) => {
+        e.target.result.forEach(key => tx.objectStore('plannedSessions').delete(key));
+      };
+
+    tx.objectStore('backlog').index('projectId')
+      .getAllKeys(IDBKeyRange.only(id)).onsuccess = (e) => {
+        e.target.result.forEach(key => tx.objectStore('backlog').delete(key));
       };
   });
 }
@@ -407,6 +428,130 @@ export function deleteImportantDate(id) {
     const req = tx.objectStore('importantDates').delete(id);
     req.onsuccess = () => {
       deleteRecord('important_dates', id);
+      resolve();
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+// --- Planned Sessions ---
+
+export function createPlannedSession(data) {
+  return new Promise((resolve, reject) => {
+    const tx = getDB().transaction('plannedSessions', 'readwrite');
+    const store = tx.objectStore('plannedSessions');
+    const record = {
+      projectId: data.projectId,
+      date: data.date,
+      type: data.type,
+      taskIds: data.taskIds ?? [],
+      note: data.note ?? '',
+      createdAt: Date.now(),
+    };
+    const req = store.add(record);
+    req.onsuccess = () => {
+      const fullRecord = { ...record, id: req.result };
+      syncRecord('planned_sessions', fullRecord);
+      resolve(fullRecord);
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export function getPlannedSessionsForProject(projectId) {
+  return new Promise((resolve, reject) => {
+    const tx = getDB().transaction('plannedSessions', 'readonly');
+    const req = tx.objectStore('plannedSessions').index('projectId').getAll(IDBKeyRange.only(projectId));
+    req.onsuccess = () => resolve(req.result.sort((a, b) => a.date.localeCompare(b.date)));
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export function updatePlannedSession(id, changes) {
+  return new Promise((resolve, reject) => {
+    const tx = getDB().transaction('plannedSessions', 'readwrite');
+    const store = tx.objectStore('plannedSessions');
+    const getReq = store.get(id);
+    getReq.onsuccess = () => {
+      const updated = { ...getReq.result, ...changes };
+      const putReq = store.put(updated);
+      putReq.onsuccess = () => {
+        syncRecord('planned_sessions', updated);
+        resolve(updated);
+      };
+      putReq.onerror = () => reject(putReq.error);
+    };
+    getReq.onerror = () => reject(getReq.error);
+  });
+}
+
+export function deletePlannedSession(id) {
+  return new Promise((resolve, reject) => {
+    const tx = getDB().transaction('plannedSessions', 'readwrite');
+    const req = tx.objectStore('plannedSessions').delete(id);
+    req.onsuccess = () => {
+      deleteRecord('planned_sessions', id);
+      resolve();
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+// --- Backlog ---
+
+export function createBacklogItem(data) {
+  return new Promise((resolve, reject) => {
+    const tx = getDB().transaction('backlog', 'readwrite');
+    const store = tx.objectStore('backlog');
+    const record = {
+      projectId: data.projectId,
+      text: data.text,
+      order: data.order ?? 0,
+      createdAt: Date.now(),
+    };
+    const req = store.add(record);
+    req.onsuccess = () => {
+      const fullRecord = { ...record, id: req.result };
+      syncRecord('backlog', fullRecord);
+      resolve(fullRecord);
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export function getBacklogForProject(projectId) {
+  return new Promise((resolve, reject) => {
+    const tx = getDB().transaction('backlog', 'readonly');
+    const req = tx.objectStore('backlog').index('projectId').getAll(IDBKeyRange.only(projectId));
+    req.onsuccess = () => resolve(req.result.sort((a, b) => a.order - b.order));
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export function updateBacklogItem(id, changes) {
+  return new Promise((resolve, reject) => {
+    const tx = getDB().transaction('backlog', 'readwrite');
+    const store = tx.objectStore('backlog');
+    const getReq = store.get(id);
+    getReq.onsuccess = () => {
+      const updated = { ...getReq.result, ...changes };
+      const putReq = store.put(updated);
+      putReq.onsuccess = () => {
+        syncRecord('backlog', updated);
+        resolve(updated);
+      };
+      putReq.onerror = () => reject(putReq.error);
+    };
+    getReq.onerror = () => reject(getReq.error);
+  });
+}
+
+export function deleteBacklogItem(id) {
+  return new Promise((resolve, reject) => {
+    const tx = getDB().transaction('backlog', 'readwrite');
+    const req = tx.objectStore('backlog').delete(id);
+    req.onsuccess = () => {
+      deleteRecord('backlog', id);
       resolve();
     };
     req.onerror = () => reject(req.error);

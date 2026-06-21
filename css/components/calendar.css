@@ -159,6 +159,60 @@
   line-height: 1.4;
 }
 
+/* ─── All real days clickable ────────────────────────────────────────────── */
+
+.cal-day:not(.cal-day-empty) {
+  cursor: pointer;
+}
+
+.cal-day:not(.cal-day-empty):not(.is-today):hover {
+  background-color: var(--bg-elevated);
+}
+
+/* ─── Panel entries are interactive ─────────────────────────────────────── */
+
+.cal-panel-item {
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.cal-panel-item:hover {
+  background-color: var(--bg-elevated);
+}
+
+/* ─── Add button in day panel ────────────────────────────────────────────── */
+
+.cal-panel-add-btn {
+  display: block;
+  width: 100%;
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: none;
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.cal-panel-add-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ─── Session panel item variant ────────────────────────────────────────── */
+
+.cal-panel-item--session {
+  border-left: 2px solid var(--status-success, #4a9c6d);
+}
+
+.cal-panel-item--session .cal-panel-name {
+  color: var(--status-success, #4a9c6d);
+}
+
 /* ─── Date input dark mode fix ───────────────────────────────────────────── */
 
 .form-input[type="date"] {

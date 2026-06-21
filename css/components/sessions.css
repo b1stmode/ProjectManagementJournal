@@ -82,6 +82,118 @@
   border-top: 1px solid var(--border-subtle);
 }
 
+/* ─── Calendar edit/schedule modals ──── */
+
+.cal-modal-project {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-top: calc(-1 * var(--space-3));
+  margin-bottom: var(--space-2);
+}
+
+.cal-modal-actions {
+  justify-content: space-between;
+}
+
+.cal-modal-right {
+  display: flex;
+  gap: var(--space-3);
+}
+
+/* ─── Plan Next Session block ────────── */
+
+.session-plan-block {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: var(--space-4);
+}
+
+.session-plan-optional {
+  font-weight: var(--font-weight-normal);
+  color: var(--text-muted);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: var(--text-xs);
+}
+
+.session-plan-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.session-plan-row .form-input {
+  flex: 1;
+  min-width: 140px;
+}
+
+.session-type-toggle {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.session-type-btn {
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: var(--space-1) var(--space-3);
+  transition: border-color var(--transition-fast), color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.session-type-btn:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.session-type-btn.is-active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background-color: var(--accent-muted);
+}
+
+.plan-task-preview {
+  display: flex;
+  flex-direction: column;
+}
+
+.plan-task-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  list-style: none;
+}
+
+.plan-task-item {
+  display: flex;
+  align-items: center;
+}
+
+.plan-task-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.plan-task-check {
+  accent-color: var(--accent);
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.plan-task-empty {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
 /* ─── Session history (project detail) ── */
 
 .sessions-section {

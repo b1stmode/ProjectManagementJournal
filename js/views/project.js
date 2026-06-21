@@ -4,6 +4,7 @@ import {
   createTask, getTasksForMilestone, getTask, updateTask, deleteTask,
   getSessionsForProject,
   createImportantDate, getImportantDatesForProject, updateImportantDate, deleteImportantDate,
+  createBacklogItem, getBacklogForProject, updateBacklogItem, deleteBacklogItem,
 } from '../db.js';
 import { openModal, closeModal, openConfirmModal } from '../utils/modal.js';
 import { getActiveMilestone, checkMilestoneCompletion } from '../utils/milestones.js';
@@ -56,6 +57,14 @@ export async function renderProject(params) {
         <div id="date-list-container"></div>
       </div>
 
+      <div class="backlog-section">
+        <div class="backlog-header">
+          <span class="backlog-title">Backlog</span>
+          <button class="btn btn-ghost" id="add-backlog-btn" style="font-size: var(--text-xs); padding: 2px var(--space-3);">+ Add Item</button>
+        </div>
+        <div id="backlog-list-container"></div>
+      </div>
+
       <div class="sessions-section">
         <div class="sessions-header">
           <span class="sessions-title">Session History</span>
@@ -102,9 +111,11 @@ export async function renderProject(params) {
   document.getElementById('set-active-btn')?.addEventListener('click', () => handleSetActive(project));
   document.getElementById('add-milestone-btn').addEventListener('click', () => openMilestoneModal(null));
   document.getElementById('add-date-btn').addEventListener('click', () => openDateModal(null));
+  document.getElementById('add-backlog-btn').addEventListener('click', () => openBacklogModal());
 
   await renderMilestones();
   await renderImportantDates();
+  await renderBacklog();
   await renderSessions();
 }
 
@@ -458,6 +469,96 @@ async function handleDeleteDate(date) {
     await deleteImportantDate(date.id);
     await renderImportantDates();
   });
+}
+
+async function renderBacklog() {
+  const container = document.getElementById('backlog-list-container');
+  if (!container) return;
+
+  const items = await getBacklogForProject(currentProjectId);
+
+  if (items.length === 0) {
+    container.innerHTML = `<div class="dates-empty">No backlog items yet.</div>`;
+    return;
+  }
+
+  container.innerHTML = `
+    <ul class="date-list">
+      ${items.map((item, i) => `
+        <li class="date-item" data-backlog-id="${item.id}">
+          <div class="date-item-body">
+            <div class="backlog-item-reorder">
+              <button class="btn-icon" data-action="backlog-up" data-backlog-id="${item.id}" ${i === 0 ? 'disabled' : ''}>↑</button>
+              <button class="btn-icon" data-action="backlog-down" data-backlog-id="${item.id}" ${i === items.length - 1 ? 'disabled' : ''}>↓</button>
+            </div>
+            <span class="date-item-name">${escapeHtml(item.text)}</span>
+          </div>
+          <div class="date-item-actions">
+            <button class="btn btn-danger" data-action="delete-backlog" data-backlog-id="${item.id}" style="font-size: var(--text-xs); padding: 2px var(--space-3);">Delete</button>
+          </div>
+        </li>
+      `).join('')}
+    </ul>
+  `;
+
+  container.querySelectorAll('[data-action="delete-backlog"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = Number(btn.dataset.backlogId);
+      const item = items.find(it => it.id === id);
+      if (item) handleDeleteBacklogItem(item);
+    });
+  });
+
+  container.querySelectorAll('[data-action="backlog-up"]').forEach(btn => {
+    btn.addEventListener('click', () => reorderBacklogItem(items, Number(btn.dataset.backlogId), -1));
+  });
+
+  container.querySelectorAll('[data-action="backlog-down"]').forEach(btn => {
+    btn.addEventListener('click', () => reorderBacklogItem(items, Number(btn.dataset.backlogId), 1));
+  });
+}
+
+function openBacklogModal() {
+  openModal(
+    'New Backlog Item',
+    `
+      <div class="form-field">
+        <label class="form-label" for="backlog-text">Item</label>
+        <input class="form-input" id="backlog-text" type="text" placeholder="Describe the backlog item" />
+      </div>
+    `,
+    async (modal) => {
+      const text = modal.querySelector('#backlog-text').value.trim();
+      if (!text) return;
+      const existing = await getBacklogForProject(currentProjectId);
+      await createBacklogItem({ projectId: currentProjectId, text, order: existing.length });
+      closeModal();
+      await renderBacklog();
+    },
+    'Add'
+  );
+}
+
+async function handleDeleteBacklogItem(item) {
+  openConfirmModal(`Delete "${escapeHtml(item.text)}"?`, async () => {
+    closeModal();
+    await deleteBacklogItem(item.id);
+    await renderBacklog();
+  });
+}
+
+async function reorderBacklogItem(items, itemId, direction) {
+  const index = items.findIndex(it => it.id === itemId);
+  const targetIndex = index + direction;
+  if (targetIndex < 0 || targetIndex >= items.length) return;
+
+  const a = items[index];
+  const b = items[targetIndex];
+  await Promise.all([
+    updateBacklogItem(a.id, { order: b.order }),
+    updateBacklogItem(b.id, { order: a.order }),
+  ]);
+  await renderBacklog();
 }
 
 async function renderSessions() {
