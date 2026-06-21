@@ -52,14 +52,14 @@
 ## V2 — Cloud Sync
 *Goal: Data lives in the cloud, accessible from any device*
 
-**M7 — Supabase Database + Sync**
+**M7 — Supabase Database + Sync** ✓ *(2026-06-20)*
 - Supabase project setup — cloud schema mirroring IndexedDB structure (projects, milestones, tasks, sessions)
 - Write layer: all mutations write to both IndexedDB and Supabase
 - Read layer: on load, pull latest from Supabase if online
 - Note: no Supabase Auth needed — Cloudflare Zero Trust already handles access control
 - Note: design schema with per-user RLS in mind (for M12), even if not enforced yet
 
-**M8 — Migration & Stability**
+**M8 — Migration & Stability** ✓ *(2026-06-20)*
 - One-time migration: push existing local IndexedDB data up to Supabase on first sync
 - Offline-first conflict handling — local state wins when offline, syncs on reconnect
 - Multi-device testing — verify data consistency across browsers/devices
@@ -70,14 +70,19 @@
 *Goal: Smarter planning, better visibility*
 
 **M9 — Calendar & Dates**
-- Read-only calendar on home (today highlighted, deadlines marked)
-- Important Dates as a dedicated object within projects
-- Click date → show deadlines for that day
+- Read-only calendar on home (today highlighted, Important Dates marked)
+- Important Dates as a dedicated object within projects (name + date + optional note)
+- Click date → show Important Dates for that day
+- Home alert when an Important Date is within X days
+- Scope: Important Dates only — per-task/milestone due dates are backlogged
 
 **M10 — Session Intelligence**
-- Session types: short / medium / long → different task counts shown on home
-- Mid-session milestone completion handling (pull tasks from next milestone)
+- Session types: small / mid / big
+- Next Session Planning: after Finish Session, optionally pick a date + type → app generates suggested task list from active milestone (small: 1–2 tasks, mid: 3–5, big: full milestone or more) → saved as a Planned Session → visible on calendar
+- Mid-session milestone completion handling (pull tasks from next milestone without ending session)
 - Backlog management per project
+
+> Backlogged: per-task and per-milestone due dates (Option B) — revisit after M9 calendar usage patterns are clear.
 
 ---
 

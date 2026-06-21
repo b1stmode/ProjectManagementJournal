@@ -26,8 +26,9 @@ Project
 ├─ Milestones (ordered)
 │  └─ Tasks (ordered within milestone)
 ├─ Session History
-├─ Important Dates (later)
-└─ Backlog (later)
+├─ Planned Sessions (M10)
+├─ Important Dates (M9)
+└─ Backlog (M10)
 ```
 
 No standalone tasks, milestones, or sessions outside a project context.
@@ -90,7 +91,7 @@ Completed tasks auto-update milestone completion percentage.
 - Today highlighted
 - Days with deadline tasks marked
 - Click date → shows deadlines for that day
-- Interactive session planning: V2+
+- Planned sessions visible from M10 onwards
 
 ---
 
@@ -162,10 +163,19 @@ No teal. No gradients. No neon. Typography and text carry the visual weight.
 
 ### V3 — Enhanced Features
 - M9: Calendar & dates — read-only calendar on home, important dates object, deadline visibility
-- M10: Session intelligence — session types (short/medium/long), mid-session milestone advance, backlog
+- M10: Session intelligence — session types (small/mid/big), next session planning (pick date + type after Finish Session → generates suggested task list → saved as planned session → visible on calendar), mid-session milestone advance, backlog per project
 
 ### V4 — Integrations
 - M11: Google Calendar sync — connect in-app calendar to Google Calendar so tasks with due dates appear on phone natively
+
+### V5 — Multi-user
+- M12: Supabase Auth — user accounts, per-user RLS enforcement. Required only if opening to other users. V2 schema already designed with RLS in mind.
+
+---
+
+## Backlogged Features
+
+- Per-task / per-milestone due dates — deferred from M9; add when calendar usage patterns are clearer.
 
 ---
 
@@ -173,4 +183,4 @@ No teal. No gradients. No neon. Typography and text carry the visual weight.
 
 **M1–M8 complete** (as of 2026-06-20). V1 and V2 are done. App is live on Cloudflare Pages with Supabase cloud sync, offline queue, and multi-device support.
 
-**Next:** V3 — M9 Calendar & Dates or M10 Session Intelligence.
+**Next:** V3 — M9 Calendar & Dates (scoped to Important Dates only; per-task due dates backlogged).
