@@ -98,10 +98,13 @@
 ## V4 — Integrations
 *Goal: Connect to external tools*
 
-**M11 — Google Calendar Sync**
-- Connect in-app calendar to Google Calendar account
-- Push Important Dates and Planned Sessions to Google Calendar so they appear natively on the phone
-- Push-only (app → GCal) — no bidirectional sync
+**M11 — iCal Feed** ✓ *(2026-06-21)*
+- Pivoted from OAuth-based Google Calendar API (blocked by Google Cloud Console access restriction) to a universal iCal feed — simpler, works with any calendar app (Apple Calendar, Google Calendar, Outlook, etc.)
+- Cloudflare Pages Function at `/api/calendar/[token].js` queries Supabase and returns a valid `.ics` file with all Important Dates and Planned Sessions as all-day events
+- Token-based URL obscurity — `CALENDAR_TOKEN` env var in Cloudflare Pages, also stored in `config.js` for frontend display
+- Calendar feed URL displayed in the calendar sidebar with a Copy button (desktop + mobile)
+- Zero Trust bypass rule added for `/api/calendar/*` path so calendar apps can reach the feed without auth
+- Push-only — app → calendar app via subscription. No bidirectional sync. Refresh rate depends on the subscribing app (Apple Calendar: configurable down to 5 min; Google Calendar: ~6–24h)
 
 ---
 
