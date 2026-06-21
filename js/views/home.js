@@ -9,6 +9,7 @@ import {
 import { navigate } from '../router.js';
 import { openModal, closeModal, openConfirmModal } from '../utils/modal.js';
 import { getActiveMilestone, checkMilestoneCompletion } from '../utils/milestones.js';
+import { CALENDAR_TOKEN } from '../config.js';
 
 export async function renderHome(_params) {
   const app = document.getElementById('app');
@@ -73,6 +74,14 @@ export async function renderHome(_params) {
           <span class="calendar-sidebar-title">Calendar</span>
         </div>
         <div id="calendar-container"></div>
+        <div class="cal-feed-section">
+          <span class="cal-feed-label">Calendar Feed</span>
+          <div class="cal-feed-row">
+            <input class="cal-feed-input" id="cal-feed-input" readonly
+              value="${window.location.origin}/api/calendar/${CALENDAR_TOKEN}" />
+            <button class="cal-feed-copy-btn" id="cal-feed-copy-btn">Copy</button>
+          </div>
+        </div>
       </aside>
     </div>
   `;
@@ -92,6 +101,17 @@ export async function renderHome(_params) {
     const now = new Date();
     renderCalendar(calContainer, calEvents, projectNameMap, projects, now.getMonth(), now.getFullYear());
   }
+
+  document.getElementById('cal-feed-copy-btn')?.addEventListener('click', () => {
+    const feedUrl = `${window.location.origin}/api/calendar/${CALENDAR_TOKEN}`;
+    const btn = document.getElementById('cal-feed-copy-btn');
+    navigator.clipboard.writeText(feedUrl).then(() => {
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+    }).catch(() => {
+      document.getElementById('cal-feed-input')?.select();
+    });
+  });
 
   document.getElementById('finish-session-btn')?.addEventListener('click', async () => {
     if (!activeProject || !activeMilestone) return;
