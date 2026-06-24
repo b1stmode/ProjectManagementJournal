@@ -116,7 +116,25 @@
 
 ---
 
-## V5 — Multi-user / Public Release
+## V5 — Structure
+*Goal: Reflect how developers actually think about project versions*
+
+**Versions layer** ✓ *(2026-06-24)*
+- Project → Versions → Milestones → Tasks hierarchy
+- IDB v4: new `versions` store, `versionId` index on milestones
+- Supabase: `versions` table, `version_id` column on `milestones`
+- Active version: automatic (first incomplete by order)
+- Completion chain: task → milestone → version → project
+- Version cards on project detail with inline milestone management
+
+**Pending (next session):**
+- SW cache bump to v9 (v8 holds a broken file — see changelog 2026-06-24)
+- Restore sidebar V/M progress label (`"X/Y V · X/Y M"`)
+- Restore project header progress summary bar
+
+---
+
+## V6 — Multi-user / Public Release
 *Goal: Ship to other users beyond the single-user personal setup*
 
 **M12 — Supabase Auth**
@@ -129,5 +147,4 @@
 ## Backlogged Features
 
 - **Per-task / per-milestone due dates** — deferred from M9; revisit when calendar usage patterns are clearer.
-- **Versions layer** — add one hierarchy level above milestones: Project → Versions → Milestones → Tasks. Developers naturally think in versions (V1, V2, V3); the current system tracks this only in the user's head. Would also enable version-scoped session planning ("big session = finish the current version"). Significant data model change — new IDB store, new Supabase table, migration of existing milestones, UI updates across project detail and home. Scope as its own milestone before M12.
 - **First-time setup walkthrough** — guided onboarding for new users explaining the app hierarchy, how to set up their first project, and how to connect the calendar feed. Relevant only when opening to other users (M12). Out of scope for single-user personal use.

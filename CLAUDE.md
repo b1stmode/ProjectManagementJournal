@@ -23,15 +23,16 @@
 
 ```
 Project
-├─ Milestones (ordered)
-│  └─ Tasks (ordered within milestone)
+├─ Versions (ordered)
+│  └─ Milestones (ordered within version)
+│     └─ Tasks (ordered within milestone)
 ├─ Session History
 ├─ Planned Sessions (M10)
 ├─ Important Dates (M9)
 └─ Backlog (M10)
 ```
 
-No standalone tasks, milestones, or sessions outside a project context.
+No standalone tasks, milestones, sessions, or versions outside a project context.
 
 ---
 
@@ -166,10 +167,13 @@ No teal. No gradients. No neon. Typography and text carry the visual weight.
 - M10: Session intelligence — session types (small/mid/big), next session planning (pick date + type after Finish Session → generates suggested task list → saved as planned session → visible on calendar), mid-session milestone advance, backlog per project
 
 ### V4 — Integrations
-- M11: Google Calendar sync — connect in-app calendar to Google Calendar so tasks with due dates appear on phone natively
+- M11: iCal feed — Cloudflare Pages Function serving `.ics` with all Important Dates + Planned Sessions. Token-based URL, Zero Trust bypass, works with any calendar app. ✓
 
-### V5 — Multi-user
-- M12: Supabase Auth — user accounts, per-user RLS enforcement. Required only if opening to other users. V2 schema already designed with RLS in mind.
+### V5 — Structure
+- Versions layer — Project → Versions → Milestones → Tasks. IDB v4, new `versions` store + `versionId` index on milestones. Supabase `versions` table. Completion chain: task → milestone → version → project. ✓
+
+### V6 — Multi-user
+- M12: Supabase Auth — user accounts, per-user RLS enforcement. Required only if opening to other users. Schema already designed with RLS in mind.
 
 ---
 
@@ -181,6 +185,8 @@ No teal. No gradients. No neon. Typography and text carry the visual weight.
 
 ## Status
 
-**M1–M10 complete** (as of 2026-06-21). V1, V2, and V3 are done. App is live on Cloudflare Pages with Supabase cloud sync, offline queue, multi-device support, calendar, Important Dates, Planned Sessions, and backlog.
+**M1–M11 + Versions layer complete** (as of 2026-06-24). V1–V5 done. App live on Cloudflare Pages with Supabase sync, offline queue, calendar, iCal feed, session workflow, and Versions layer.
 
-**Next:** V4 — M11 Google Calendar Sync (push-only: Important Dates + Planned Sessions → Google Calendar).
+**Pending (start of next session):**
+1. Bump SW cache `pm-journal-v8` → `pm-journal-v9` in `sw.js` — current v8 cache holds a broken `home.js` (committed with conflict markers). App works only after manually unregistering the SW; v9 bump fixes it for all devices.
+2. Restore progress display features lost in a bad commit: sidebar V/M label (versions count + milestone count) and project header progress summary bar. Both were implemented then accidentally reverted.

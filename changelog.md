@@ -412,3 +412,52 @@ The `important_dates` table was also missing the `name` column entirely. `planne
 - `css/components/home.css` — `.home-session-meta`, `.home-session-done`, `.home-idle-section`, `.home-idle-text`, `.btn-start-session`, `.home-prompt-card`, `.home-prompt-title`, `.home-prompt-meta`, `.home-prompt-actions` added
 
 **SW cache** bumped to `pm-journal-v6`.
+
+---
+
+## 2026-06-24 — Session 6
+
+### Versions layer (V5) ✓
+
+Added a new hierarchy level between Projects and Milestones: **Project → Versions → Milestones → Tasks**.
+
+**Files modified:**
+- `js/db.js` — IDB version bumped to 4; `versions` object store created (`projectId` index); `versionId` index added to `milestones` store; `createMilestone` record shape includes `versionId`; new exports: `createVersion`, `getVersion`, `getAllVersionsForProject`, `updateVersion`, `deleteVersion`, `getMilestonesForVersion`; `deleteProject` cascade updated to include `versions`
+- `js/sync.js` — `toSnake`/`toCamel` maps extended with `versionId ↔ version_id`; `syncUp` fetches and upserts versions; `syncDown` Phase 1/2/3 extended to 8 stores (added `versions`); tombstone deletion handles versions
+- `js/utils/milestones.js` — `getActiveMilestone()` is now version-aware (finds first incomplete version, then first incomplete milestone within it); new `checkVersionCompletion()` function; `checkMilestoneCompletion` and `checkProjectCompletion` updated to chain through version completion
+- `js/views/project.js` — `renderMilestones()` replaced by `renderVersions()`; version CRUD modals; version reordering; milestones rendered inside version cards; `openMilestoneModal` accepts `versionId`; `getMilestonesForVersion` used instead of `getMilestonesForProject`
+- `js/views/home.js` — `getAllVersionsForProject` imported; `activeVersions` fetched for active project; passed to `getActiveMilestone()`
+- `css/components/project-detail.css` — version card styles added: `.version-list`, `.version-item`, `.version-header`, `.version-reorder`, `.version-title-row`, `.version-name`, `.version-description`, `.version-progress`, `.version-actions`, `.version-body`
+- `sw.js` — cache bumped to `pm-journal-v7`
+
+**Supabase setup (manual):**
+- `versions` table: `id bigint`, `project_id bigint`, `name text`, `description text`, `order int`, `is_complete bool`, `completed_at bigint`, `created_at bigint`. Open RLS policy.
+- `milestones` table: `version_id bigint` column added (`ALTER TABLE milestones ADD COLUMN IF NOT EXISTS version_id bigint`). Open RLS policy confirmed.
+
+**ID strategy:** Versions use `Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)` as explicit ID (same pattern as importantDates/plannedSessions/backlog) to prevent cross-device IDB autoincrement collisions.
+
+**Active version logic:** Automatic — first incomplete version by `order`. Not user-selectable.
+
+**Completion chain:** all tasks done → milestone complete → all milestones in version done → version complete → all versions done → project complete. Chain reverses if a task is unchecked.
+
+---
+
+### Bug — Conflict markers committed, breaking app load
+
+**Problem:** After a partial revert attempt (commit `e49ef7f` "Progress bar updated"), `js/views/home.js` was committed with unresolved git conflict markers (`<<<<<<<` / `=======` / `>>>>>>>`). A JS file with conflict markers is a syntax error — the module fails to parse, the entire app hangs on the loading screen with no error message on both localhost and Cloudflare.
+
+**Fix (commit `f54a273`):** Removed conflict markers, keeping the simpler 2-param `renderSidebarItem` that matched the call site.
+
+**Secondary issue (unresolved):** SW cache `pm-journal-v8` was populated before the fix, locking the broken file into the cache. The browser won't reinstall the SW unless `sw.js` content changes.
+
+**Fix for next session:** Bump `sw.js` cache to `pm-journal-v9`.
+
+---
+
+### Pending — Progress display features (partially lost in e49ef7f)
+
+Two display features were implemented then partially reverted in the same bad commit. Need to be restored next session:
+
+1. **Sidebar progress label** — show `"X/Y V · X/Y M"` instead of just `"X/Y milestones"`. Requires adding `versionGroups` back to the home.js parallel fetch and updating `renderSidebarItem` to accept and display version counts.
+
+2. **Project header progress summary** — a small bar + label (`"X/Y versions · X/Y milestones"`) in the project detail header, populated inside `renderVersions()` from data already in scope. Requires re-adding the `#project-progress-summary` div to the project header HTML and the code that fills it.
