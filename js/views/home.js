@@ -15,8 +15,7 @@ export async function renderHome(_params) {
   const app = document.getElementById('app');
 
   const allProjects = await getAllProjects();
-  const [versionGroups, milestoneGroups, dateGroups, plannedGroups] = await Promise.all([
-    Promise.all(allProjects.map(p => getAllVersionsForProject(p.id))),
+  const [milestoneGroups, dateGroups, plannedGroups] = await Promise.all([
     Promise.all(allProjects.map(p => getMilestonesForProject(p.id))),
     Promise.all(allProjects.map(p => getImportantDatesForProject(p.id))),
     Promise.all(allProjects.map(p => getPlannedSessionsForProject(p.id))),
@@ -29,7 +28,7 @@ export async function renderHome(_params) {
   ];
   const projectNameMap = Object.fromEntries(allProjects.map(p => [p.id, p.name]));
 
-  const paired = allProjects.map((p, i) => ({ project: p, milestones: milestoneGroups[i], versions: versionGroups[i] }));
+  const paired = allProjects.map((p, i) => ({ project: p, milestones: milestoneGroups[i] }));
   paired.sort((a, b) => {
     const rank = { active: 0, inactive: 1, complete: 2 };
     const rd = (rank[a.project.status] ?? 1) - (rank[b.project.status] ?? 1);
@@ -37,7 +36,6 @@ export async function renderHome(_params) {
   });
   const projects = paired.map(x => x.project);
   const milestones = paired.map(x => x.milestones);
-  const sidebarVersions = paired.map(x => x.versions);
 
   const activeIdx = projects.findIndex(p => p.status === 'active');
   const activeProject = activeIdx >= 0 ? projects[activeIdx] : null;
@@ -93,7 +91,7 @@ export async function renderHome(_params) {
         <div class="sidebar-project-list">
           ${projects.length === 0
             ? `<p class="sidebar-empty">No projects yet.</p>`
-            : projects.map((p, i) => renderSidebarItem(p, milestones[i], sidebarVersions[i])).join('')}
+            : projects.map((p, i) => renderSidebarItem(p, milestones[i])).join('')}
         </div>
       </aside>
       <main class="home-main">
@@ -213,6 +211,7 @@ export async function renderHome(_params) {
   }
 }
 
+<<<<<<< HEAD
 function renderSidebarItem(project, milestones, versions) {
   const mTotal = milestones.length;
   const mComplete = milestones.filter(m => m.isComplete).length;
@@ -223,6 +222,12 @@ function renderSidebarItem(project, milestones, versions) {
   const label = vTotal > 0
     ? `${vComplete}/${vTotal}V · ${mComplete}/${mTotal}M`
     : `${mComplete}/${mTotal}M`;
+=======
+function renderSidebarItem(project, milestones) {
+  const total = milestones.length;
+  const complete = milestones.filter(m => m.isComplete).length;
+  const percent = total === 0 ? 0 : Math.round((complete / total) * 100);
+>>>>>>> parent of 9ada40f (Progress display: X/Y versions · X/Y milestones in sidebar and project header)
 
   return `
     <div class="sidebar-project-item${project.status === 'active' ? ' is-active' : ''}"
@@ -235,7 +240,7 @@ function renderSidebarItem(project, milestones, versions) {
         <div class="milestone-progress-bar-track">
           <div class="milestone-progress-bar-fill" style="width: ${percent}%"></div>
         </div>
-        <span class="milestone-progress-label">${label}</span>
+        <span class="milestone-progress-label">${complete}/${total} milestones</span>
       </div>
     </div>
   `;

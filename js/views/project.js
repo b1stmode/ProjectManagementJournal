@@ -40,7 +40,6 @@ export async function renderProject(params) {
         ${project.description
           ? `<p class="project-description">${escapeHtml(project.description)}</p>`
           : ''}
-        <div id="project-progress-summary" class="project-progress-summary"></div>
       </div>
 
       <div class="milestones-section">
@@ -139,21 +138,6 @@ async function renderVersions() {
 
   const allMilestones = milestoneGroups.flat();
   const activeMilestone = getActiveMilestone(allMilestones, versions);
-
-  const summaryEl = document.getElementById('project-progress-summary');
-  if (summaryEl) {
-    const vTotal = versions.length;
-    const vComplete = versions.filter(v => v.isComplete).length;
-    const mTotal = allMilestones.length;
-    const mComplete = allMilestones.filter(m => m.isComplete).length;
-    const percent = mTotal === 0 ? 0 : Math.round((mComplete / mTotal) * 100);
-    summaryEl.innerHTML = `
-      <div class="milestone-progress-bar-track">
-        <div class="milestone-progress-bar-fill" style="width: ${percent}%"></div>
-      </div>
-      <span class="milestone-progress-label">${vComplete}/${vTotal} versions · ${mComplete}/${mTotal} milestones</span>
-    `;
-  }
 
   container.innerHTML = `
     <div class="version-list">
