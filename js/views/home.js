@@ -221,8 +221,8 @@ function renderSidebarItem(project, milestones, versions) {
   const vTotal = versions?.length ?? 0;
   const vComplete = versions?.filter(v => v.isComplete).length ?? 0;
   const label = vTotal > 0
-    ? `${vComplete}/${vTotal} versions · ${mComplete}/${mTotal} milestones`
-    : `${mComplete}/${mTotal} milestones`;
+    ? `${vComplete}/${vTotal}V · ${mComplete}/${mTotal}M`
+    : `${mComplete}/${mTotal}M`;
 
   return `
     <div class="sidebar-project-item${project.status === 'active' ? ' is-active' : ''}"
