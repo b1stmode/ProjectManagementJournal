@@ -1,6 +1,6 @@
 import {
   getAllProjects, createProject, updateProject,
-  getMilestonesForProject,
+  getAllVersionsForProject, getMilestonesForProject,
   getTasksForMilestone, getTasksForProject, getTask, updateTask,
   createSession,
   createImportantDate, getImportantDatesForProject, updateImportantDate, deleteImportantDate,
@@ -40,9 +40,11 @@ export async function renderHome(_params) {
   const activeIdx = projects.findIndex(p => p.status === 'active');
   const activeProject = activeIdx >= 0 ? projects[activeIdx] : null;
 
+  const activeVersions = activeProject ? await getAllVersionsForProject(activeProject.id) : [];
+
   let activeMilestone = null;
   if (activeProject) {
-    activeMilestone = getActiveMilestone(milestones[activeIdx]);
+    activeMilestone = getActiveMilestone(milestones[activeIdx], activeVersions);
   }
 
   // Session state
@@ -855,8 +857,11 @@ async function openEditDateModal(dateEvent, container, projectNameMap, allProjec
 }
 
 async function openEditSessionModal(sessionEvent, container, projectNameMap, allProjects, month, year) {
-  const milestones = await getMilestonesForProject(sessionEvent.projectId);
-  const activeMilestone = getActiveMilestone(milestones);
+  const [milestones, versions] = await Promise.all([
+    getMilestonesForProject(sessionEvent.projectId),
+    getAllVersionsForProject(sessionEvent.projectId),
+  ]);
+  const activeMilestone = getActiveMilestone(milestones, versions);
   const milestoneTasks = activeMilestone
     ? (await getTasksForMilestone(activeMilestone.id)).filter(t => !t.isComplete)
     : [];
@@ -1052,8 +1057,11 @@ async function openScheduleModal(dateKey, container, projectNameMap, allProjects
     const preview = dynamicFields.querySelector('#sched-task-preview');
     if (!preview || !projectId || !schedSessionType) return;
 
-    const milestones = await getMilestonesForProject(projectId);
-    const activeMilestone = getActiveMilestone(milestones);
+    const [milestones, versions] = await Promise.all([
+      getMilestonesForProject(projectId),
+      getAllVersionsForProject(projectId),
+    ]);
+    const activeMilestone = getActiveMilestone(milestones, versions);
     if (!activeMilestone) {
       preview.innerHTML = '<p class="plan-task-empty">No active milestone for this project.</p>';
       return;

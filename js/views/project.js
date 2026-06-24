@@ -1,6 +1,7 @@
 import {
   getProject, getAllProjects, updateProject, deleteProject,
-  createMilestone, getMilestonesForProject, updateMilestone, deleteMilestone,
+  createVersion, getVersion, getAllVersionsForProject, updateVersion, deleteVersion,
+  createMilestone, getMilestonesForVersion, updateMilestone, deleteMilestone,
   createTask, getTasksForMilestone, getTask, updateTask, deleteTask,
   getSessionsForProject,
   createImportantDate, getImportantDatesForProject, updateImportantDate, deleteImportantDate,
@@ -43,10 +44,10 @@ export async function renderProject(params) {
 
       <div class="milestones-section">
         <div class="milestones-header">
-          <span class="milestones-title">Milestones</span>
-          <button class="btn btn-primary" id="add-milestone-btn">+ Add Milestone</button>
+          <span class="milestones-title">Versions</span>
+          <button class="btn btn-primary" id="add-version-btn">+ Add Version</button>
         </div>
-        <div id="milestone-list-container"></div>
+        <div id="version-list-container"></div>
       </div>
 
       <div class="dates-section">
@@ -109,40 +110,62 @@ export async function renderProject(params) {
   });
 
   document.getElementById('set-active-btn')?.addEventListener('click', () => handleSetActive(project));
-  document.getElementById('add-milestone-btn').addEventListener('click', () => openMilestoneModal(null));
+  document.getElementById('add-version-btn').addEventListener('click', () => openVersionModal(null));
   document.getElementById('add-date-btn').addEventListener('click', () => openDateModal(null));
   document.getElementById('add-backlog-btn').addEventListener('click', () => openBacklogModal());
 
-  await renderMilestones();
+  await renderVersions();
   await renderImportantDates();
   await renderBacklog();
   await renderSessions();
 }
 
-async function renderMilestones() {
-  const container = document.getElementById('milestone-list-container');
+async function renderVersions() {
+  const container = document.getElementById('version-list-container');
   if (!container) return;
 
-  const milestones = await getMilestonesForProject(currentProjectId);
-  const taskGroups = await Promise.all(milestones.map(m => getTasksForMilestone(m.id)));
-  const active = getActiveMilestone(milestones);
+  const versions = await getAllVersionsForProject(currentProjectId);
 
-  if (milestones.length === 0) {
-    container.innerHTML = `<div class="milestones-empty">No milestones yet. Add one to start tracking progress.</div>`;
+  if (versions.length === 0) {
+    container.innerHTML = `<div class="milestones-empty">No versions yet. Add one to start tracking progress.</div>`;
     return;
   }
 
+  const milestoneGroups = await Promise.all(versions.map(v => getMilestonesForVersion(v.id)));
+  const taskGroupsPerVersion = await Promise.all(
+    milestoneGroups.map(milestones => Promise.all(milestones.map(m => getTasksForMilestone(m.id))))
+  );
+
+  const allMilestones = milestoneGroups.flat();
+  const activeMilestone = getActiveMilestone(allMilestones, versions);
+
   container.innerHTML = `
-    <div class="milestone-list">
-      ${milestones.map((m, i) => renderMilestoneItem(m, taskGroups[i], i, milestones.length, active?.id === m.id)).join('')}
+    <div class="version-list">
+      ${versions.map((v, i) =>
+        renderVersionItem(v, milestoneGroups[i], taskGroupsPerVersion[i], i, versions.length, activeMilestone?.id)
+      ).join('')}
     </div>
   `;
 
-  milestones.forEach((m, i) => {
+  // Version-level events
+  versions.forEach((v, i) => {
+    const vEl = container.querySelector(`[data-version-id="${v.id}"]`);
+    vEl.querySelector('[data-action="version-up"]')?.addEventListener('click', () => reorderVersion(versions, i, -1));
+    vEl.querySelector('[data-action="version-down"]')?.addEventListener('click', () => reorderVersion(versions, i, 1));
+    vEl.querySelector('[data-action="edit-version"]').addEventListener('click', () => openVersionModal(v));
+    vEl.querySelector('[data-action="delete-version"]').addEventListener('click', () => handleDeleteVersion(v));
+    vEl.querySelector('[data-action="add-milestone"]').addEventListener('click', () => openMilestoneModal(null, v.id));
+  });
+
+  // Milestone-level events
+  milestoneGroups.flat().forEach((m) => {
+    const milestonesInVersion = milestoneGroups[versions.findIndex(v => v.id === m.versionId)];
+    const idxInVersion = milestonesInVersion.findIndex(ms => ms.id === m.id);
     const item = container.querySelector(`[data-milestone-id="${m.id}"]`);
-    item.querySelector('[data-action="up"]')?.addEventListener('click', () => reorderMilestone(milestones, i, -1));
-    item.querySelector('[data-action="down"]')?.addEventListener('click', () => reorderMilestone(milestones, i, 1));
-    item.querySelector('[data-action="edit"]').addEventListener('click', () => openMilestoneModal(m));
+    if (!item) return;
+    item.querySelector('[data-action="up"]')?.addEventListener('click', () => reorderMilestone(milestonesInVersion, idxInVersion, -1));
+    item.querySelector('[data-action="down"]')?.addEventListener('click', () => reorderMilestone(milestonesInVersion, idxInVersion, 1));
+    item.querySelector('[data-action="edit"]').addEventListener('click', () => openMilestoneModal(m, m.versionId));
     item.querySelector('[data-action="delete"]').addEventListener('click', () => handleDeleteMilestone(m));
   });
 
@@ -172,6 +195,48 @@ async function renderMilestones() {
   container.querySelectorAll('[data-action="task-down"]').forEach(btn => {
     btn.addEventListener('click', () => reorderTask(Number(btn.dataset.taskId), 1));
   });
+}
+
+function renderVersionItem(version, milestones, taskGroups, index, total, activeMilestoneId) {
+  const totalTasks = taskGroups.flat().length;
+  const completeTasks = taskGroups.flat().filter(t => t.isComplete).length;
+  const percent = totalTasks === 0 ? 0 : Math.round((completeTasks / totalTasks) * 100);
+
+  return `
+    <div class="version-item ${version.isComplete ? 'is-complete' : ''}" data-version-id="${version.id}">
+      <div class="version-header">
+        <div class="version-reorder">
+          <button class="btn-icon" data-action="version-up" ${index === 0 ? 'disabled' : ''}>↑</button>
+          <button class="btn-icon" data-action="version-down" ${index === total - 1 ? 'disabled' : ''}>↓</button>
+        </div>
+        <div class="version-title-row">
+          <span class="version-name">${escapeHtml(version.name)}</span>
+          ${version.isComplete ? `<span class="milestone-badge complete">Complete</span>` : ''}
+          ${version.description ? `<span class="version-description">${escapeHtml(version.description)}</span>` : ''}
+        </div>
+        ${totalTasks > 0 ? `
+          <div class="version-progress">
+            <div class="milestone-progress-bar-track">
+              <div class="milestone-progress-bar-fill" style="width: ${percent}%"></div>
+            </div>
+            <span class="milestone-progress-label">${completeTasks}/${totalTasks} tasks</span>
+          </div>
+        ` : ''}
+        <div class="version-actions">
+          <button class="btn btn-ghost" data-action="edit-version" style="font-size: var(--text-xs); padding: 2px var(--space-3);">Edit</button>
+          <button class="btn btn-danger" data-action="delete-version" style="font-size: var(--text-xs); padding: 2px var(--space-3);">Delete</button>
+        </div>
+      </div>
+      <div class="version-body">
+        ${milestones.length > 0
+          ? `<div class="milestone-list">
+              ${milestones.map((m, i) => renderMilestoneItem(m, taskGroups[i], i, milestones.length, activeMilestoneId === m.id)).join('')}
+             </div>`
+          : `<div class="milestones-empty" style="padding: var(--space-3) 0;">No milestones in this version yet.</div>`}
+        <button class="task-add-btn" data-action="add-milestone" style="margin-top: var(--space-2);">+ Add Milestone</button>
+      </div>
+    </div>
+  `;
 }
 
 function renderMilestoneItem(milestone, tasks, index, total, isActive) {
@@ -236,7 +301,7 @@ function renderTaskItem(task, index, total) {
   `;
 }
 
-function openMilestoneModal(existing) {
+function openMilestoneModal(existing, versionId) {
   const isEdit = existing !== null;
   openModal(
     isEdit ? 'Edit Milestone' : 'New Milestone',
@@ -259,12 +324,13 @@ function openMilestoneModal(existing) {
       if (isEdit) {
         await updateMilestone(existing.id, { name, description });
       } else {
-        const all = await getMilestonesForProject(currentProjectId);
-        await createMilestone({ projectId: currentProjectId, name, description, order: all.length });
+        const vid = versionId ?? existing?.versionId ?? null;
+        const sibling = vid ? await getMilestonesForVersion(vid) : [];
+        await createMilestone({ projectId: currentProjectId, versionId: vid, name, description, order: sibling.length });
       }
 
       closeModal();
-      await renderMilestones();
+      await renderVersions();
     },
     isEdit ? 'Save' : 'Create'
   );
@@ -293,7 +359,7 @@ function openTaskModal(milestoneId, existing = null) {
       if (isEdit) {
         await updateTask(existing.id, { name, description });
         closeModal();
-        await renderMilestones();
+        await renderVersions();
       } else {
         const tasks = await getTasksForMilestone(milestoneId);
         await createTask({ milestoneId, projectId: currentProjectId, name, description, order: tasks.length });
@@ -330,7 +396,7 @@ async function reorderTask(taskId, direction) {
     updateTask(a.id, { order: b.order }),
     updateTask(b.id, { order: a.order }),
   ]);
-  await renderMilestones();
+  await renderVersions();
 }
 
 async function handleDeleteTask(taskId) {
@@ -354,7 +420,21 @@ async function reorderMilestone(milestones, index, direction) {
     updateMilestone(b.id, { order: a.order }),
   ]);
 
-  await renderMilestones();
+  await renderVersions();
+}
+
+async function reorderVersion(versions, index, direction) {
+  const targetIndex = index + direction;
+  if (targetIndex < 0 || targetIndex >= versions.length) return;
+
+  const a = versions[index];
+  const b = versions[targetIndex];
+  await Promise.all([
+    updateVersion(a.id, { order: b.order }),
+    updateVersion(b.id, { order: a.order }),
+  ]);
+
+  await renderVersions();
 }
 
 async function handleSetActive(project) {
@@ -371,9 +451,55 @@ async function handleDeleteMilestone(milestone) {
   openConfirmModal(`Delete milestone "${escapeHtml(milestone.name)}"? All tasks inside it will also be deleted.`, async () => {
     closeModal();
     await deleteMilestone(milestone.id);
-    await renderMilestones();
+    await renderVersions();
     await renderSessions();
   });
+}
+
+function openVersionModal(existing) {
+  const isEdit = existing !== null;
+  openModal(
+    isEdit ? 'Edit Version' : 'New Version',
+    `
+      <div class="form-field">
+        <label class="form-label" for="version-name">Name</label>
+        <input class="form-input" id="version-name" type="text" placeholder="e.g. V1, V2, 1.0"
+               value="${isEdit ? escapeHtml(existing.name) : ''}" />
+      </div>
+      <div class="form-field">
+        <label class="form-label" for="version-desc">Description</label>
+        <textarea class="form-textarea" id="version-desc" placeholder="Optional description">${isEdit ? escapeHtml(existing.description ?? '') : ''}</textarea>
+      </div>
+    `,
+    async (modal) => {
+      const name = modal.querySelector('#version-name').value.trim();
+      if (!name) return;
+      const description = modal.querySelector('#version-desc').value.trim();
+
+      if (isEdit) {
+        await updateVersion(existing.id, { name, description });
+      } else {
+        const all = await getAllVersionsForProject(currentProjectId);
+        await createVersion({ projectId: currentProjectId, name, description, order: all.length });
+      }
+
+      closeModal();
+      await renderVersions();
+    },
+    isEdit ? 'Save' : 'Create'
+  );
+}
+
+async function handleDeleteVersion(version) {
+  openConfirmModal(
+    `Delete version "${escapeHtml(version.name)}"? All milestones and tasks inside it will also be deleted.`,
+    async () => {
+      closeModal();
+      await deleteVersion(version.id);
+      await renderVersions();
+      await renderSessions();
+    }
+  );
 }
 
 async function renderImportantDates() {

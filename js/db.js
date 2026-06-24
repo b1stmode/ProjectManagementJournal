@@ -1,7 +1,7 @@
 import { syncRecord, deleteRecord } from './sync.js';
 
 const DB_NAME = 'pmjournal';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 let db = null;
 
@@ -55,6 +55,17 @@ export function initDB() {
       if (!database.objectStoreNames.contains('backlog')) {
         const bl = database.createObjectStore('backlog', { keyPath: 'id', autoIncrement: true });
         bl.createIndex('projectId', 'projectId', { unique: false });
+      }
+
+      if (event.oldVersion < 4) {
+        if (!database.objectStoreNames.contains('versions')) {
+          const versions = database.createObjectStore('versions', { keyPath: 'id', autoIncrement: true });
+          versions.createIndex('projectId', 'projectId', { unique: false });
+        }
+        const milestonesStore = event.target.transaction.objectStore('milestones');
+        if (!milestonesStore.indexNames.contains('versionId')) {
+          milestonesStore.createIndex('versionId', 'versionId', { unique: false });
+        }
       }
     };
 
@@ -135,7 +146,7 @@ export function updateProject(id, changes) {
 
 export function deleteProject(id) {
   return new Promise((resolve, reject) => {
-    const tx = getDB().transaction(['projects', 'milestones', 'tasks', 'sessions', 'importantDates', 'plannedSessions', 'backlog'], 'readwrite');
+    const tx = getDB().transaction(['projects', 'versions', 'milestones', 'tasks', 'sessions', 'importantDates', 'plannedSessions', 'backlog'], 'readwrite');
     tx.oncomplete = () => {
       deleteRecord('projects', id); // Supabase FK cascade handles child records
       resolve();
@@ -143,6 +154,11 @@ export function deleteProject(id) {
     tx.onerror = () => reject(tx.error);
 
     tx.objectStore('projects').delete(id);
+
+    tx.objectStore('versions').index('projectId')
+      .getAllKeys(IDBKeyRange.only(id)).onsuccess = (e) => {
+        e.target.result.forEach(key => tx.objectStore('versions').delete(key));
+      };
 
     tx.objectStore('milestones').index('projectId')
       .getAllKeys(IDBKeyRange.only(id)).onsuccess = (e) => {
@@ -193,6 +209,7 @@ export function createMilestone(data) {
     const store = tx.objectStore('milestones');
     const record = {
       projectId: data.projectId,
+      versionId: data.versionId ?? null,
       name: data.name,
       description: data.description ?? '',
       order: data.order ?? 0,
@@ -214,6 +231,15 @@ export function getMilestonesForProject(projectId) {
   return new Promise((resolve, reject) => {
     const tx = getDB().transaction('milestones', 'readonly');
     const req = tx.objectStore('milestones').index('projectId').getAll(IDBKeyRange.only(projectId));
+    req.onsuccess = () => resolve(req.result.sort((a, b) => a.order - b.order));
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export function getMilestonesForVersion(versionId) {
+  return new Promise((resolve, reject) => {
+    const tx = getDB().transaction('milestones', 'readonly');
+    const req = tx.objectStore('milestones').index('versionId').getAll(IDBKeyRange.only(versionId));
     req.onsuccess = () => resolve(req.result.sort((a, b) => a.order - b.order));
     req.onerror = () => reject(req.error);
   });
@@ -251,6 +277,92 @@ export function deleteMilestone(id) {
     tx.objectStore('tasks').index('milestoneId')
       .getAllKeys(IDBKeyRange.only(id)).onsuccess = (e) => {
         e.target.result.forEach(key => tx.objectStore('tasks').delete(key));
+      };
+  });
+}
+
+// --- Versions ---
+
+export function createVersion(data) {
+  return new Promise((resolve, reject) => {
+    const tx = getDB().transaction('versions', 'readwrite');
+    const store = tx.objectStore('versions');
+    const record = {
+      id: Math.floor(Math.random() * Number.MAX_SAFE_INTEGER),
+      projectId: data.projectId,
+      name: data.name,
+      description: data.description ?? '',
+      order: data.order ?? 0,
+      isComplete: false,
+      completedAt: null,
+      createdAt: Date.now(),
+    };
+    const req = store.add(record);
+    req.onsuccess = () => {
+      const fullRecord = { ...record, id: req.result };
+      syncRecord('versions', fullRecord);
+      resolve(fullRecord);
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export function getVersion(id) {
+  return new Promise((resolve, reject) => {
+    const tx = getDB().transaction('versions', 'readonly');
+    const req = tx.objectStore('versions').get(id);
+    req.onsuccess = () => resolve(req.result ?? null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export function getAllVersionsForProject(projectId) {
+  return new Promise((resolve, reject) => {
+    const tx = getDB().transaction('versions', 'readonly');
+    const req = tx.objectStore('versions').index('projectId').getAll(IDBKeyRange.only(projectId));
+    req.onsuccess = () => resolve(req.result.sort((a, b) => a.order - b.order));
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export function updateVersion(id, changes) {
+  return new Promise((resolve, reject) => {
+    const tx = getDB().transaction('versions', 'readwrite');
+    const store = tx.objectStore('versions');
+    const getReq = store.get(id);
+    getReq.onsuccess = () => {
+      const updated = { ...getReq.result, ...changes };
+      const putReq = store.put(updated);
+      putReq.onsuccess = () => {
+        syncRecord('versions', updated);
+        resolve(updated);
+      };
+      putReq.onerror = () => reject(putReq.error);
+    };
+    getReq.onerror = () => reject(getReq.error);
+  });
+}
+
+export function deleteVersion(id) {
+  return new Promise((resolve, reject) => {
+    const tx = getDB().transaction(['versions', 'milestones', 'tasks'], 'readwrite');
+    tx.oncomplete = () => {
+      deleteRecord('versions', id);
+      resolve();
+    };
+    tx.onerror = () => reject(tx.error);
+
+    tx.objectStore('versions').delete(id);
+
+    tx.objectStore('milestones').index('versionId')
+      .getAllKeys(IDBKeyRange.only(id)).onsuccess = (e) => {
+        e.target.result.forEach(milestoneKey => {
+          tx.objectStore('milestones').delete(milestoneKey);
+          tx.objectStore('tasks').index('milestoneId')
+            .getAllKeys(IDBKeyRange.only(milestoneKey)).onsuccess = (te) => {
+              te.target.result.forEach(taskKey => tx.objectStore('tasks').delete(taskKey));
+            };
+        });
       };
   });
 }
