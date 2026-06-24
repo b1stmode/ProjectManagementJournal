@@ -211,23 +211,10 @@ export async function renderHome(_params) {
   }
 }
 
-<<<<<<< HEAD
-function renderSidebarItem(project, milestones, versions) {
-  const mTotal = milestones.length;
-  const mComplete = milestones.filter(m => m.isComplete).length;
-  const percent = mTotal === 0 ? 0 : Math.round((mComplete / mTotal) * 100);
-
-  const vTotal = versions?.length ?? 0;
-  const vComplete = versions?.filter(v => v.isComplete).length ?? 0;
-  const label = vTotal > 0
-    ? `${vComplete}/${vTotal}V · ${mComplete}/${mTotal}M`
-    : `${mComplete}/${mTotal}M`;
-=======
 function renderSidebarItem(project, milestones) {
   const total = milestones.length;
   const complete = milestones.filter(m => m.isComplete).length;
   const percent = total === 0 ? 0 : Math.round((complete / total) * 100);
->>>>>>> parent of 9ada40f (Progress display: X/Y versions · X/Y milestones in sidebar and project header)
 
   return `
     <div class="sidebar-project-item${project.status === 'active' ? ' is-active' : ''}"
