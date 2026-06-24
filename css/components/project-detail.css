@@ -295,6 +295,16 @@
   margin-right: var(--space-3);
 }
 
+/* ─── Project progress summary ───────── */
+
+.project-progress-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  max-width: 360px;
+}
+
 /* ─── Versions ───────────────────────── */
 
 .version-list {
@@ -318,10 +328,11 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-4) var(--space-4);
   background-color: var(--bg-base);
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-default);
   flex-wrap: wrap;
+  row-gap: var(--space-3);
 }
 
 .version-reorder {
@@ -365,7 +376,7 @@
 }
 
 .version-body {
-  padding: var(--space-4) var(--space-4) var(--space-3);
+  padding: var(--space-5) var(--space-4) var(--space-4);
 }
 
 /* ─── Responsive ──────────────────────── */
