@@ -40,6 +40,7 @@ export async function renderProject(params) {
         ${project.description
           ? `<p class="project-description">${escapeHtml(project.description)}</p>`
           : ''}
+        <div id="project-progress-summary" class="project-progress-summary"></div>
       </div>
 
       <div class="milestones-section">
@@ -125,9 +126,11 @@ async function renderVersions() {
   if (!container) return;
 
   const versions = await getAllVersionsForProject(currentProjectId);
+  const summaryEl = document.getElementById('project-progress-summary');
 
   if (versions.length === 0) {
     container.innerHTML = `<div class="milestones-empty">No versions yet. Add one to start tracking progress.</div>`;
+    if (summaryEl) summaryEl.innerHTML = '';
     return;
   }
 
@@ -138,6 +141,21 @@ async function renderVersions() {
 
   const allMilestones = milestoneGroups.flat();
   const activeMilestone = getActiveMilestone(allMilestones, versions);
+
+  if (summaryEl) {
+    const allTasks = taskGroupsPerVersion.flat().flat();
+    const completeTasks = allTasks.filter(t => t.isComplete).length;
+    const totalTasks = allTasks.length;
+    const taskPercent = totalTasks === 0 ? 0 : Math.round((completeTasks / totalTasks) * 100);
+    const completeV = versions.filter(v => v.isComplete).length;
+    const completeM = allMilestones.filter(m => m.isComplete).length;
+    summaryEl.innerHTML = `
+      <div class="milestone-progress-bar-track">
+        <div class="milestone-progress-bar-fill" style="width: ${taskPercent}%"></div>
+      </div>
+      <span class="milestone-progress-label">${completeV}/${versions.length} V · ${completeM}/${allMilestones.length} M · ${completeTasks}/${totalTasks} tasks</span>
+    `;
+  }
 
   container.innerHTML = `
     <div class="version-list">

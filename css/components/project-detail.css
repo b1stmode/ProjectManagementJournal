@@ -44,6 +44,13 @@
   line-height: 1.6;
 }
 
+.project-progress-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
 /* Milestones section */
 
 .milestones-section {
