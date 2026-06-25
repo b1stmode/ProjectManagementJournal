@@ -339,6 +339,16 @@ function renderTodaysTaskItem(task) {
 }
 
 async function handleToggleTask(taskId) {
+  const scrollY = window.scrollY;
+
+  const taskEl = document.querySelector(`.task-item[data-task-id="${taskId}"]`);
+  if (taskEl) {
+    const isNowComplete = !taskEl.classList.contains('is-complete');
+    taskEl.classList.toggle('is-complete', isNowComplete);
+    const checkbox = taskEl.querySelector('.task-checkbox');
+    if (checkbox) checkbox.textContent = isNowComplete ? '✓' : '○';
+  }
+
   const task = await getTask(taskId);
   const nowComplete = !task.isComplete;
   await updateTask(taskId, {
@@ -347,6 +357,7 @@ async function handleToggleTask(taskId) {
   });
   await checkMilestoneCompletion(task.milestoneId);
   await renderHome({});
+  window.scrollTo(0, scrollY);
 }
 
 function openNewProjectModal() {

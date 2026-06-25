@@ -126,3 +126,12 @@ ul, ol {
   opacity: 0.2;
   cursor: not-allowed;
 }
+
+/* Prevent iOS Safari from zooming in on focused inputs (triggers when font-size < 16px) */
+@media (max-width: 768px) {
+  .form-input,
+  .form-textarea,
+  select {
+    font-size: 16px;
+  }
+}

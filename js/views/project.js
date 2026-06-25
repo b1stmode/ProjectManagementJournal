@@ -35,7 +35,7 @@ export async function renderProject(params) {
           <button class="btn btn-danger" id="delete-project-btn" style="font-size: var(--text-xs); padding: 2px var(--space-3);">Delete</button>
           ${project.status !== 'active'
             ? `<button class="btn btn-primary" id="set-active-btn">Set Active</button>`
-            : ''}
+            : `<button class="btn btn-ghost" id="deactivate-btn">Deactivate</button>`}
         </div>
         ${project.description
           ? `<p class="project-description">${escapeHtml(project.description)}</p>`
@@ -111,6 +111,7 @@ export async function renderProject(params) {
   });
 
   document.getElementById('set-active-btn')?.addEventListener('click', () => handleSetActive(project));
+  document.getElementById('deactivate-btn')?.addEventListener('click', () => handleDeactivate(project));
   document.getElementById('add-version-btn').addEventListener('click', () => openVersionModal(null));
   document.getElementById('add-date-btn').addEventListener('click', () => openDateModal(null));
   document.getElementById('add-backlog-btn').addEventListener('click', () => openBacklogModal());
@@ -391,6 +392,16 @@ function openTaskModal(milestoneId, existing = null) {
 }
 
 async function handleToggleTask(taskId) {
+  const scrollY = window.scrollY;
+
+  const taskEl = document.querySelector(`.task-item[data-task-id="${taskId}"]`);
+  if (taskEl) {
+    const isNowComplete = !taskEl.classList.contains('is-complete');
+    taskEl.classList.toggle('is-complete', isNowComplete);
+    const checkbox = taskEl.querySelector('.task-checkbox');
+    if (checkbox) checkbox.textContent = isNowComplete ? '✓' : '○';
+  }
+
   const task = await getTask(taskId);
   const nowComplete = !task.isComplete;
   await updateTask(taskId, {
@@ -399,6 +410,7 @@ async function handleToggleTask(taskId) {
   });
   await checkMilestoneCompletion(task.milestoneId);
   await renderProject({ id: currentProjectId });
+  window.scrollTo(0, scrollY);
 }
 
 async function reorderTask(taskId, direction) {
@@ -453,6 +465,11 @@ async function reorderVersion(versions, index, direction) {
   ]);
 
   await renderVersions();
+}
+
+async function handleDeactivate(project) {
+  await updateProject(project.id, { status: 'inactive' });
+  await renderProject({ id: String(project.id) });
 }
 
 async function handleSetActive(project) {

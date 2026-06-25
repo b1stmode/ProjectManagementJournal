@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pm-journal-v10';
+const CACHE_NAME = 'pm-journal-v12';
 const FONTS_CACHE = 'pm-journal-fonts';
 
 const PRECACHE_URLS = [
