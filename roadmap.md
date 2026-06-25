@@ -127,10 +127,25 @@
 - Completion chain: task → milestone → version → project
 - Version cards on project detail with inline milestone management
 
-**Pending (next session):**
-- SW cache bump to v9 (v8 holds a broken file — see changelog 2026-06-24)
-- Restore sidebar V/M progress label (`"X/Y V · X/Y M"`)
-- Restore project header progress summary bar
+**Post-V5 regression fixes** ✓ *(2026-06-25)*
+- SW bumped to v9 to evict broken v8 cache
+- Sidebar V/M label restored (`"X/Y V · X/Y M"`)
+- Project header progress summary bar restored
+
+---
+
+## Post-V5 — Refinements & Utilities *(2026-06-25)*
+
+**Roadmap import** ✓
+- Import a `roadmap.md` file into an existing project — creates Versions, Milestones, Tasks, and Backlog items in one step
+- Drop zone as dominant interaction (drag-and-drop), paste textarea as secondary (collapsible toggle)
+- "Copy Claude Prompt" button to get the expected format
+- One-time import only, no sync
+
+**UX fixes** ✓
+- Task toggle scroll preservation — `project.js` and `home.js`: instant visual feedback + scroll position restored after re-render
+- Deactivate button on project detail — projects can be deactivated without activating another one first
+- Mobile input zoom fix — `font-size: 16px` on all form inputs at ≤768px prevents iOS Safari auto-zoom
 
 ---
 

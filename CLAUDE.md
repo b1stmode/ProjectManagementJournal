@@ -185,8 +185,6 @@ No teal. No gradients. No neon. Typography and text carry the visual weight.
 
 ## Status
 
-**M1–M11 + Versions layer complete** (as of 2026-06-24). V1–V5 done. App live on Cloudflare Pages with Supabase sync, offline queue, calendar, iCal feed, session workflow, and Versions layer.
+**M1–M11 + Versions layer + Roadmap import + UX fixes complete** (as of 2026-06-25). V1–V5 done. App live on Cloudflare Pages with Supabase sync, offline queue, calendar, iCal feed, session workflow, Versions layer, and roadmap import utility. SW at `pm-journal-v12`.
 
-**Pending (start of next session):**
-1. Bump SW cache `pm-journal-v8` → `pm-journal-v9` in `sw.js` — current v8 cache holds a broken `home.js` (committed with conflict markers). App works only after manually unregistering the SW; v9 bump fixes it for all devices.
-2. Restore progress display features lost in a bad commit: sidebar V/M label (versions count + milestone count) and project header progress summary bar. Both were implemented then accidentally reverted.
+**No pending items.** Next focus: real-world usage and V6 (Supabase Auth) when ready to open to other users.

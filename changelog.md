@@ -461,3 +461,68 @@ Two display features were implemented then partially reverted in the same bad co
 1. **Sidebar progress label** — show `"X/Y V · X/Y M"` instead of just `"X/Y milestones"`. Requires adding `versionGroups` back to the home.js parallel fetch and updating `renderSidebarItem` to accept and display version counts.
 
 2. **Project header progress summary** — a small bar + label (`"X/Y versions · X/Y milestones"`) in the project detail header, populated inside `renderVersions()` from data already in scope. Requires re-adding the `#project-progress-summary` div to the project header HTML and the code that fills it.
+
+---
+
+## 2026-06-25 — Session 7
+
+### Regression fixes (lost in bad commit)
+
+Restored two display features accidentally reverted in the conflict-marker commit (`e49ef7f`):
+
+**Files modified:**
+- `js/views/home.js` — `versionGroups` re-added to the parallel Promise.all fetch; `renderSidebarItem` updated to accept and display version + milestone counts as `"X/Y V · X/Y M"`
+- `js/views/project.js` — `#project-progress-summary` div re-added to project header HTML; `renderVersions()` repopulated it with progress bar + `"X/Y V · X/Y M · X/Y tasks"` label
+- `css/components/project-detail.css` — `.project-progress-summary` styles re-added
+
+**SW cache** bumped to `pm-journal-v9` to evict the broken v8 cache and force a clean reinstall on all devices.
+
+---
+
+### Roadmap import (new feature)
+
+**Files created:**
+- `js/utils/importer.js` — exports `CLAUDE_IMPORT_PROMPT` (static format reference string), `parseRoadmap(text)`, `importRoadmapToProject(projectId, text)`. Parser processes the roadmap line by line tracking `currentVersion` / `currentMilestone` / `inBacklog` state. Import function chains `createVersion → createMilestone → createTask` sequentially, mapping object references to real IDB IDs via Map.
+
+**Files modified:**
+- `js/views/home.js` — "Import" button added to sidebar header (wrapped in a flex div alongside "+ New"). `openImportModal()` implemented: drop zone as dominant interaction (drag-and-drop `.md` file), paste textarea as secondary (expandable toggle link), "Copy Claude Prompt" button copies `CLAUDE_IMPORT_PROMPT` to clipboard. `importRoadmapToProject` called on confirm, project list re-renders.
+- `css/components/modal.css` — drop zone styles added: `.import-drop-zone`, `.is-over`, `.has-file`, `.import-drop-zone-icon`, `.import-drop-filename`, `.import-bottom-row`, `.import-toggle-btn`, `.import-roadmap-textarea`
+- `sw.js` — `importer.js` added to `PRECACHE_URLS`
+
+**Roadmap file format (unified):**
+```
+## V1 — Version name
+
+**M1 — Milestone name**
+- Task one
+- Task two
+
+## Backlog
+- Backlog item
+```
+`## ` (not `## Backlog`) → Version. `**M...` bold line → Milestone. `- ` list items → Tasks (inside milestone) or Backlog items (inside Backlog block).
+
+**Scope:** One-time import only. No sync, no migration, no bidirectional update. Intended for bootstrapping a new project from an existing roadmap file.
+
+**SW cache** bumped to `pm-journal-v10` after adding `importer.js` to precache.
+
+---
+
+### UX fixes
+
+**Scroll preservation — task toggle (project.js + home.js)**
+`handleToggleTask` in both `project.js` and `home.js` now: saves `window.scrollY` before async work → applies instant visual feedback synchronously (toggles `.is-complete` class + checkbox character on the DOM element without waiting for IDB) → does the async IDB chain → restores scroll after re-render. Eliminates page jump when toggling tasks far down the list.
+
+**Deactivate button**
+Project detail header now shows a "Deactivate" ghost button when the project is active, alongside the existing "Set Active" primary button when inactive. `handleDeactivate()` sets status to `inactive` and clears the active flag — allows deactivating without needing to activate another project first.
+
+**Mobile input zoom fix**
+Added to `css/base.css`:
+```css
+@media (max-width: 768px) {
+  .form-input, .form-textarea, select { font-size: 16px; }
+}
+```
+iOS Safari auto-zooms on focused inputs when `font-size < 16px`. Forces 16px on mobile to prevent the unwanted zoom.
+
+**SW cache** bumped to `pm-journal-v12`.
