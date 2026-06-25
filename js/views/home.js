@@ -8,6 +8,7 @@ import {
 } from '../db.js';
 import { navigate } from '../router.js';
 import { openModal, closeModal, openConfirmModal } from '../utils/modal.js';
+import { importRoadmapToProject, CLAUDE_IMPORT_PROMPT } from '../utils/importer.js';
 import { getActiveMilestone, checkMilestoneCompletion } from '../utils/milestones.js';
 import { CALENDAR_TOKEN } from '../config.js';
 
@@ -88,7 +89,10 @@ export async function renderHome(_params) {
       <aside class="home-sidebar">
         <div class="sidebar-header">
           <span class="sidebar-title">Projects</span>
-          <button class="btn btn-primary" id="new-project-btn" style="font-size: var(--text-xs); padding: 2px var(--space-3);">+ New</button>
+          <div style="display:flex;gap:var(--space-2);">
+            <button class="btn btn-ghost" id="import-project-btn" style="font-size: var(--text-xs); padding: 2px var(--space-3);">Import</button>
+            <button class="btn btn-primary" id="new-project-btn" style="font-size: var(--text-xs); padding: 2px var(--space-3);">+ New</button>
+          </div>
         </div>
         <div class="sidebar-project-list">
           ${projects.length === 0
@@ -119,6 +123,7 @@ export async function renderHome(_params) {
   `;
 
   document.getElementById('new-project-btn').addEventListener('click', () => openNewProjectModal());
+  document.getElementById('import-project-btn').addEventListener('click', () => openImportModal());
 
   document.querySelectorAll('[data-action="open-project"]').forEach(el => {
     el.addEventListener('click', () => navigate(`/project/${el.dataset.projectId}`));
@@ -367,6 +372,155 @@ function openNewProjectModal() {
     },
     'Create'
   );
+}
+
+function openImportModal() {
+  const overlay = document.createElement('div');
+  overlay.className = 'session-modal-overlay';
+  overlay.innerHTML = `
+    <div class="session-modal" style="max-width:520px" role="dialog" aria-modal="true">
+      <h2 class="session-modal-title">Import Project from Roadmap</h2>
+      <div class="session-modal-body">
+        <div class="form-field">
+          <label class="form-label" for="import-proj-name">Project Name</label>
+          <input class="form-input" id="import-proj-name" type="text" placeholder="Project name" />
+        </div>
+        <div class="import-drop-zone" id="import-drop-zone" tabindex="0" role="button" aria-label="Drop zone for roadmap file">
+          <span class="import-drop-zone-icon" id="import-drop-icon">↓</span>
+          <div id="import-drop-label">Drop roadmap.md here or click to browse</div>
+          <div class="import-drop-filename" id="import-drop-filename" style="display:none;"></div>
+          <button type="button" class="import-toggle-btn" id="import-clear-btn"
+                  style="display:none; margin-top:var(--space-2);">✕ Clear</button>
+        </div>
+        <input type="file" id="import-file-input" accept=".md,.txt" style="display:none;" />
+        <div class="import-bottom-row">
+          <button class="import-toggle-btn" id="import-toggle-paste" type="button">Paste instead ↓</button>
+          <button class="btn btn-ghost" id="import-copy-prompt-btn" type="button"
+                  style="font-size:var(--text-xs); padding:2px var(--space-3);">Copy Claude Prompt</button>
+        </div>
+        <textarea class="form-textarea import-roadmap-textarea" id="import-roadmap-text"
+          style="display:none;"
+          placeholder="## V1: Version Name&#10;&#10;### M1: Milestone Name&#10;- Task one&#10;- Task two&#10;&#10;## Backlog&#10;- Future idea"></textarea>
+      </div>
+      <div class="session-modal-actions">
+        <button class="btn btn-ghost" id="import-cancel">Cancel</button>
+        <button class="btn btn-primary" id="import-confirm">Import</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+  overlay.querySelector('#import-proj-name').focus();
+
+  const close = () => overlay.remove();
+  const dropZone = overlay.querySelector('#import-drop-zone');
+  const fileInput = overlay.querySelector('#import-file-input');
+  const dropIcon = overlay.querySelector('#import-drop-icon');
+  const dropLabel = overlay.querySelector('#import-drop-label');
+  const dropFilename = overlay.querySelector('#import-drop-filename');
+  const clearBtn = overlay.querySelector('#import-clear-btn');
+  const textarea = overlay.querySelector('#import-roadmap-text');
+  const toggleBtn = overlay.querySelector('#import-toggle-paste');
+  let pasteOpen = false;
+
+  overlay.querySelector('#import-cancel').addEventListener('click', close);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  document.addEventListener('keydown', function onEsc(e) {
+    if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onEsc); }
+  });
+
+  function setFileLoaded(filename, content) {
+    textarea.value = content;
+    dropZone.classList.add('has-file');
+    dropIcon.textContent = '✓';
+    dropLabel.textContent = 'Click to change file';
+    dropFilename.textContent = filename;
+    dropFilename.style.display = '';
+    clearBtn.style.display = '';
+  }
+
+  function resetDropZone() {
+    textarea.value = '';
+    fileInput.value = '';
+    dropZone.classList.remove('has-file');
+    dropIcon.textContent = '↓';
+    dropLabel.textContent = 'Drop roadmap.md here or click to browse';
+    dropFilename.style.display = 'none';
+    dropFilename.textContent = '';
+    clearBtn.style.display = 'none';
+  }
+
+  function readFile(file) {
+    const reader = new FileReader();
+    reader.onload = e => setFileLoaded(file.name, e.target.result);
+    reader.readAsText(file);
+  }
+
+  dropZone.addEventListener('click', e => {
+    if (clearBtn.contains(e.target)) return;
+    fileInput.click();
+  });
+
+  dropZone.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
+  });
+
+  clearBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    resetDropZone();
+  });
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) readFile(fileInput.files[0]);
+  });
+
+  dropZone.addEventListener('dragover', e => {
+    e.preventDefault();
+    dropZone.classList.add('is-over');
+  });
+
+  dropZone.addEventListener('dragleave', e => {
+    if (!e.relatedTarget || !dropZone.contains(e.relatedTarget)) {
+      dropZone.classList.remove('is-over');
+    }
+  });
+
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('is-over');
+    const file = e.dataTransfer.files[0];
+    if (file) readFile(file);
+  });
+
+  toggleBtn.addEventListener('click', () => {
+    pasteOpen = !pasteOpen;
+    textarea.style.display = pasteOpen ? '' : 'none';
+    toggleBtn.textContent = pasteOpen ? 'Hide paste area ↑' : 'Paste instead ↓';
+  });
+
+  overlay.querySelector('#import-copy-prompt-btn').addEventListener('click', () => {
+    const btn = overlay.querySelector('#import-copy-prompt-btn');
+    navigator.clipboard.writeText(CLAUDE_IMPORT_PROMPT).then(() => {
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = 'Copy Claude Prompt'; }, 2000);
+    });
+  });
+
+  overlay.querySelector('#import-confirm').addEventListener('click', async () => {
+    const name = overlay.querySelector('#import-proj-name').value.trim();
+    const text = textarea.value.trim();
+    if (!name || !text) return;
+
+    const confirmBtn = overlay.querySelector('#import-confirm');
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = 'Importing…';
+
+    const project = await createProject({ name, description: '' });
+    await importRoadmapToProject(project.id, text);
+
+    close();
+    await renderHome({});
+  });
 }
 
 async function openStartSessionModal(activeProject, activeMilestone, _unused) {

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pm-journal-v9';
+const CACHE_NAME = 'pm-journal-v10';
 const FONTS_CACHE = 'pm-journal-fonts';
 
 const PRECACHE_URLS = [
@@ -26,6 +26,7 @@ const PRECACHE_URLS = [
   '/js/views/project.js',
   '/js/utils/milestones.js',
   '/js/utils/modal.js',
+  '/js/utils/importer.js',
 ];
 
 self.addEventListener('install', event => {
