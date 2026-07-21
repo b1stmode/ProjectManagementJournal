@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pm-journal-v12';
+const CACHE_NAME = 'pm-journal-v13';
 const FONTS_CACHE = 'pm-journal-fonts';
 
 const PRECACHE_URLS = [
@@ -6,6 +6,10 @@ const PRECACHE_URLS = [
   '/index.html',
   '/manifest.json',
   '/icons/icon.svg',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+  '/icons/icon-maskable-512.png',
+  '/icons/apple-touch-icon.png',
   '/css/tokens.css',
   '/css/base.css',
   '/css/components/modal.css',

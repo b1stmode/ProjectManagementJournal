@@ -382,6 +382,10 @@
     padding: var(--space-6) var(--space-4);
   }
 
+  .project-title {
+    flex-basis: 100%;
+  }
+
   .milestone-item {
     flex-wrap: wrap;
   }
