@@ -187,4 +187,8 @@ No teal. No gradients. No neon. Typography and text carry the visual weight.
 
 **M1–M11 + Versions layer + Roadmap import + UX fixes complete** (as of 2026-06-25). V1–V5 done. App live on Cloudflare Pages with Supabase sync, offline queue, calendar, iCal feed, session workflow, Versions layer, and roadmap import utility. SW at `pm-journal-v12`.
 
-**No pending items.** Next focus: real-world usage and V6 (Supabase Auth) when ready to open to other users.
+**2026-07-21:** Mobile scaling + real PWA icon assets added (192/512/maskable/apple-touch, manifest + sw.js updated). See changelog.
+
+**Pending:** Cloudflare Zero Trust bypass policy for the icon/manifest static asset paths (`/icons/*`, `/manifest.json`) has not been confirmed added — without it the PWA icon won't load on mobile behind Zero Trust auth, same fix category as the existing `/api/calendar` bypass from M11. Verify with user next session before assuming it's done.
+
+Next focus after that: real-world usage and V6 (Supabase Auth) when ready to open to other users.

@@ -526,3 +526,22 @@ Added to `css/base.css`:
 iOS Safari auto-zooms on focused inputs when `font-size < 16px`. Forces 16px on mobile to prevent the unwanted zoom.
 
 **SW cache** bumped to `pm-journal-v12`.
+
+---
+
+## 2026-07-21 — Session 8
+
+### Mobile scaling + app icon fix (commit `bc60adf`)
+
+**Files created:**
+- `icons/apple-touch-icon.png`, `icons/icon-192.png`, `icons/icon-512.png`, `icons/icon-maskable-512.png`, `icons/icon-maskable.svg` — real PNG/SVG icon assets, replacing the SVG-only placeholder from M6
+
+**Files modified:**
+- `icons/icon.svg` — tweaked
+- `manifest.json` — updated icon references (192/512/maskable entries)
+- `index.html` — icon link updated
+- `sw.js` — cache bumped so new icon assets get precached
+- `css/components/project-detail.css` — mobile scaling fix
+
+**Pending — not yet confirmed:**
+PWA icons are static assets served from the same Cloudflare Pages domain sitting behind Zero Trust auth. Same problem M11 hit for the `/api/calendar` feed: unauthenticated requests (here, a phone's "Add to Home Screen" icon fetch) get blocked unless a bypass policy exists for the path. User was walked through adding a Cloudflare Zero Trust bypass policy for the icon/manifest paths (`/icons/*`, `/manifest.json`), but the session was cut off before confirming it was applied — **verify next session before assuming the icon actually shows on mobile.**
