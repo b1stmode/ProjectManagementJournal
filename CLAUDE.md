@@ -189,6 +189,6 @@ No teal. No gradients. No neon. Typography and text carry the visual weight.
 
 **2026-07-21:** Mobile scaling + real PWA icon assets added (192/512/maskable/apple-touch, manifest + sw.js updated). See changelog.
 
-**Pending:** Cloudflare Zero Trust bypass policy for the icon/manifest static asset paths (`/icons/*`, `/manifest.json`) has not been confirmed added — without it the PWA icon won't load on mobile behind Zero Trust auth, same fix category as the existing `/api/calendar` bypass from M11. Verify with user next session before assuming it's done.
+**2026-07-22:** Cloudflare Zero Trust bypass policy added for the icon/manifest static asset paths (`/icons/*`, `/manifest.json`), same fix category as the existing `/api/calendar` bypass from M11. Confirmed working — PWA icon now shows on mobile.
 
 Next focus after that: real-world usage and V6 (Supabase Auth) when ready to open to other users.
